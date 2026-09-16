@@ -1,77 +1,68 @@
-﻿ProxySpeak Technical Contracts
+# ProxySpeak Technical Contracts
 
-This document defines the agreed technical contracts, system boundaries, and behavioral expectations for ProxySpeak.
+This document defines the technical contracts, system boundaries, and behavioral expectations for ProxySpeak.
 
-It should be updated whenever a public interface, shared data structure, or significant architectural behavior changes.
+> Update this document whenever a public interface, shared data structure, or significant architectural behavior changes.
 
-1. Project Overview
+## 1. Project Overview
 
 ProxySpeak is a browser-based, real-time proximity audio environment. Users occupy positions in a shared virtual world and will eventually communicate with nearby users through spatially-aware voice communication.
 
-The system is being developed in incremental milestones. The real-time movement and presence layer will be established before adding peer-to-peer audio and persistence.
+Development is incremental. The real-time movement and presence layer must be established before peer-to-peer audio and persistence are introduced.
 
-2. Repository and Architecture
+## 2. Repository and Architecture
 
-Repository: https://github.com/shivamsingh200431/ProxySpeak
+| Item | Value |
+| --- | --- |
+| Repository | `shivamsingh200431/ProxySpeak` |
+| Default branch | `main` |
+| Repository type | Single monorepo |
+| Frontend directory | `client` |
+| Backend directory | `server` |
+| Documentation directory | `docs` |
 
-Default branch: main
+### High-level architecture
 
-Repository type: single monorepo
+```text
+┌──────────────────────┐
+│    Browser Client    │
+│ React + Canvas       │
+└──────────┬───────────┘
+           │ HTTP / Socket.io
+           ▼
+┌──────────────────────┐
+│ Node.js + Express    │
+│ Real-time server     │
+└──────────┬───────────┘
+           ├── Shared world state
+           ├── Player presence
+           ├── Movement validation
+           ├── WebRTC signaling
+           └── Future persistence layer
+```
 
-Frontend directory: client
+## 3. Technology Stack
 
-Backend directory: server
+### Current stack
 
-Documentation directory: docs
+- React
+- Vite
+- JavaScript
+- HTML5 Canvas
+- Node.js
+- Express
 
-High-Level Components
+### Planned stack
 
-Browser Client
-    |
-    | HTTP / Socket.io
-    v
-Node.js + Express Server
-    |
-    +-- Real-time world state
-    |
-    +-- Player presence
-    |
-    +-- Movement validation
-    |
-    +-- WebRTC signaling
-    |
-    +-- Future persistence layer
+- **Socket.io** — real-time communication
+- **MongoDB** — persistence and geospatial queries
+- **WebRTC** — peer-to-peer audio
+- **Web Audio API** — distance-based audio processing
+- **Redis** — only if required by scaling or deployment needs
 
-3. Technology Stack
+## 4. Repository Structure
 
-Current
-
-React
-
-Vite
-
-JavaScript
-
-HTML5 Canvas
-
-Node.js
-
-Express
-
-Planned
-
-Socket.io for real-time communication
-
-MongoDB for persistence and geospatial queries
-
-WebRTC for peer-to-peer audio
-
-Web Audio API for distance-based audio processing
-
-Redis only if required by scaling or deployment needs
-
-4. Current Repository Structure
-
+```text
 ProxySpeak/
 ├── client/
 │   ├── src/
@@ -87,227 +78,184 @@ ProxySpeak/
 ├── README.md
 ├── package.json
 └── .gitignore
+```
 
-5. Development Environment
+## 5. Development Environment
 
-Frontend
+### Frontend
 
-Development server: Vite
+- Development server: Vite
+- URL: `http://localhost:5173`
 
-URL: http://localhost:5173
+### Backend
 
-Backend
+- Development server: Node.js/Express
+- URL: `http://localhost:5000`
 
-Development server: Node.js/Express
+### Health endpoint
 
-URL: http://localhost:5000
-
-Health Endpoint
-
+```http
 GET /health
+```
 
 Expected response:
 
+```json
 {
   "status": "ok",
   "service": "proxyspeak-server"
 }
+```
 
-6. Current Functional Baseline
+## 6. Current Functional Baseline
 
-The following behavior has been implemented and verified:
+The following baseline has been implemented and locally verified:
 
-The monorepo installs successfully using npm.
+- The monorepo installs successfully using npm.
+- Frontend and backend can be started together.
+- The React interface renders successfully.
+- The Canvas world is visible.
+- A local player can be moved using keyboard controls.
+- The backend health endpoint responds successfully.
+- The initial project has been committed to `main` and pushed to GitHub.
 
-Frontend and backend can be started together.
+## 7. Real-Time World Model
 
-The React interface renders successfully.
+The planned shared world contains connected players.
 
-The Canvas world is visible.
+Each player will have, at minimum:
 
-A local player can be moved using keyboard controls.
-
-The backend health endpoint responds successfully.
-
-The initial project has been committed to the main branch and pushed to GitHub.
-
-7. Real-Time World Model
-
-The planned shared world will contain connected players.
-
-Each player will have at minimum:
-
+```ts
 {
   id: string,
   x: number,
   y: number
 }
+```
 
-Additional fields may be introduced as required, but the initial movement system should remain minimal.
+Additional fields may be introduced when required, but the initial movement model should remain minimal.
 
-The server will be responsible for maintaining the authoritative shared player state.
+The server is responsible for maintaining authoritative shared player state.
 
-8. Planned Socket.io Event Categories
+## 8. Planned Socket.io Event Categories
 
-The initial real-time layer is expected to support events in the following categories:
+The initial real-time layer is expected to support the following categories.
 
-Connection Events
+### Connection events
 
-Player connected
+- Player connected
+- Player disconnected
+- Initial world state received
 
-Player disconnected
+### Movement events
 
-Initial world state received
+- Client movement update
+- Server-approved movement update
+- Broadcast movement update
 
-Movement Events
+### Presence events
 
-Client movement update
+- Player joined
+- Player left
+- Current players list
 
-Server-approved movement update
+Exact event names and payload schemas must be finalized before Socket.io implementation.
 
-Broadcast movement update
+## 9. Server Authority
 
-Presence Events
+The server is authoritative for shared world state.
 
-Player joined
+Clients may send movement updates or movement intentions, but the server must:
 
-Player left
+- Validate incoming data
+- Maintain player positions
+- Broadcast accepted state
+- Remove disconnected players
+- Prevent malformed updates from affecting other clients
 
-Current players list
+## 10. Audio Architecture
 
-Exact event names and payload schemas will be finalized before Socket.io implementation.
+Audio will be introduced only after movement and presence synchronization are stable.
 
-9. Server Authority
+Expected flow:
 
-The server is the authority for shared world state.
-
-Clients may send movement updates or movement intentions, but the server is responsible for:
-
-Validating incoming data
-
-Maintaining player positions
-
-Broadcasting accepted state
-
-Removing disconnected players
-
-Preventing malformed updates from affecting other clients
-
-10. Audio Architecture
-
-Audio will be introduced after movement and presence synchronization are stable.
-
-The expected flow is:
-
+```text
 Player Position
-    |
-    v
+      │
+      ▼
 Proximity Calculation
-    |
-    v
+      │
+      ▼
 Nearby Player Filtering
-    |
-    v
+      │
+      ▼
 WebRTC Signaling
-    |
-    v
+      │
+      ▼
 Peer-to-Peer Audio
-    |
-    v
+      │
+      ▼
 Web Audio API Distance Attenuation
+```
 
-The first audio implementation should prioritize correctness and clear connection states over advanced effects.
+The first audio implementation should prioritize reliable connections, understandable states, and graceful failure handling over advanced effects.
 
-11. Implementation Milestones
+## 11. Implementation Milestones
 
-Milestone 1: Foundation
+### Milestone 1 — Foundation
 
-Monorepo setup
+- Monorepo setup
+- Frontend setup
+- Backend setup
+- Canvas prototype
+- Basic movement
+- Health endpoint
+- Local verification
+- Initial GitHub push
 
-Frontend setup
+### Milestone 2 — Real-Time Multiplayer
 
-Backend setup
+- Install Socket.io dependencies
+- Establish client-server connection
+- Assign player IDs
+- Define event payloads
+- Synchronize player positions
+- Render remote players
+- Handle joins and disconnects
 
-Canvas prototype
+### Milestone 3 — Proximity System
 
-Basic movement
+- Define world coordinate rules
+- Calculate player distance
+- Identify nearby players
+- Apply proximity thresholds
+- Handle entering and leaving proximity range
 
-Health endpoint
+### Milestone 4 — Voice Communication
 
-Local verification
+- Add WebRTC signaling
+- Request microphone access
+- Establish peer connections
+- Handle connection failures
+- Add mute controls
+- Add distance-based attenuation
 
-Initial GitHub push
+### Milestone 5 — Persistence and Deployment
 
-Milestone 2: Real-Time Multiplayer
+- Add MongoDB where persistence is required
+- Add authentication if required
+- Configure environment variables
+- Add production builds
+- Deploy frontend and backend
+- Add monitoring and error handling
 
-Install Socket.io dependencies
+## 12. Engineering Guidelines
 
-Establish client-server connection
-
-Assign player IDs
-
-Define event payloads
-
-Synchronize player positions
-
-Render remote players
-
-Handle joins and disconnects
-
-Milestone 3: Proximity System
-
-Define world coordinate rules
-
-Calculate player distance
-
-Identify nearby players
-
-Apply proximity thresholds
-
-Handle entering and leaving proximity range
-
-Milestone 4: Voice Communication
-
-Add WebRTC signaling
-
-Request microphone access
-
-Establish peer connections
-
-Handle connection failures
-
-Add mute controls
-
-Add distance-based attenuation
-
-Milestone 5: Persistence and Deployment
-
-Add MongoDB where persistence is required
-
-Add authentication if required
-
-Configure environment variables
-
-Add production builds
-
-Deploy frontend and backend
-
-Add monitoring and error handling
-
-12. Engineering Guidelines
-
-Keep frontend rendering separate from networking logic.
-
-Keep server state management separate from HTTP route definitions.
-
-Validate all data received from clients.
-
-Avoid introducing infrastructure before it is needed.
-
-Prefer explicit event names and documented payloads.
-
-Keep shared contracts backward-compatible where practical.
-
-Use environment variables for deployment-specific configuration.
-
-Verify each milestone locally before moving to the next one.
+- Keep frontend rendering separate from networking logic.
+- Keep server state management separate from HTTP route definitions.
+- Validate all data received from clients.
+- Avoid introducing infrastructure before it is needed.
+- Prefer explicit event names and documented payloads.
+- Keep shared contracts backward-compatible where practical.
+- Use environment variables for deployment-specific configuration.
+- Verify each milestone locally before moving to the next one.
