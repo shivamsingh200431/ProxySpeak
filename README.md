@@ -1,288 +1,195 @@
-﻿ProxySpeak
+# ProxySpeak
 
-ProxySpeak is a browser-based, real-time proximity audio environment where users can move through a shared virtual world and communicate with nearby users through spatially-aware voice communication.
+A browser-based, real-time proximity audio environment where users move through a shared virtual world and communicate with nearby users through spatially-aware voice communication.
 
-The project is being developed in stages, beginning with a real-time multiplayer foundation and progressing toward proximity-based WebRTC audio.
+> The project is being developed incrementally: first establish the multiplayer world foundation, then add proximity-based WebRTC audio.
 
-Overview
+## Overview
 
-The long-term goal is to create a virtual environment in which physical distance inside the world affects communication.
+ProxySpeak explores virtual communication where distance inside the world affects who can hear whom and how clearly they can hear them.
 
-Planned capabilities include:
+### Planned capabilities
 
-Shared virtual spaces
+- Shared virtual spaces
+- Real-time player movement
+- Live player presence
+- Nearby-player detection
+- Proximity-based voice communication
+- Distance-based audio attenuation
+- Browser-based access without a native application
 
-Real-time player movement
+The current implementation focuses on the frontend world prototype and backend foundation. Audio will be introduced after movement and presence synchronization are stable.
 
-Live player presence
+## Project Status
 
-Nearby-player detection
+### Implemented
 
-Proximity-based voice communication
+- React and Vite frontend
+- Canvas-based virtual world
+- Basic keyboard movement
+- Node.js and Express backend
+- Backend health-check endpoint
+- npm workspace configuration
+- Concurrent frontend/backend development scripts
 
-Distance-based audio attenuation
+### Current focus
 
-Browser-based access without requiring a native application
+Connect the frontend and backend through Socket.io and synchronize multiple connected players in the same virtual world.
 
-The initial implementation focuses on movement and presence synchronization. Audio will be added after the real-time world foundation is stable.
+## Technology Stack
 
-Current Status
+| Layer | Technology | Status |
+| --- | --- | --- |
+| Frontend | React, Vite, JavaScript | In use |
+| Rendering | HTML5 Canvas | In use |
+| Backend | Node.js, Express | In use |
+| Real-time communication | Socket.io | Planned / next phase |
+| Persistence | MongoDB | Planned |
+| Peer-to-peer audio | WebRTC | Planned |
+| Audio processing | Web Audio API | Planned |
+| Scaling support | Redis | Optional future phase |
 
-The initial project foundation is complete and has been verified locally.
+## Repository Structure
 
-Implemented:
-
-React/Vite frontend
-
-Canvas-based virtual world
-
-Basic keyboard movement
-
-Node.js/Express backend
-
-Health-check endpoint
-
-npm workspace configuration
-
-Concurrent development scripts
-
-Current development focus:
-
-Establish the Socket.io connection and synchronize multiple connected players in the same virtual world.
-
-Technology Stack
-
-Current Stack
-
-React
-
-Vite
-
-JavaScript
-
-HTML5 Canvas
-
-Node.js
-
-Express
-
-Planned Stack
-
-Socket.io — real-time communication
-
-MongoDB — persistence and geospatial queries
-
-WebRTC — peer-to-peer audio
-
-Web Audio API — distance-based audio processing
-
-Redis — optional future scaling layer
-
-Repository Structure
-
+```text
 ProxySpeak/
 ├── client/                  # React/Vite frontend
 │   ├── src/
 │   ├── index.html
 │   ├── package.json
 │   └── vite.config.js
-│
 ├── server/                  # Node.js/Express backend
 │   ├── src/
 │   ├── package.json
 │   └── .env.example
-│
 ├── docs/                    # Project documentation
-├── contracts.md             # Technical contracts and system behavior
+├── contracts.md             # Technical contracts and shared behavior
 ├── README.md                # Project documentation
 ├── package.json             # Root workspace configuration
 └── .gitignore
+```
 
-Requirements
+## Requirements
 
-Install the following tools:
+- Node.js LTS
+- npm
+- Git
 
-Node.js
+## Getting Started
 
-npm
+### 1. Clone the repository
 
-Git
-
-A current LTS version of Node.js is recommended.
-
-Installation
-
-Clone the repository:
-
+```bash
 git clone https://github.com/shivamsingh200431/ProxySpeak.git
-
-Enter the project directory:
-
 cd ProxySpeak
+```
 
-Install dependencies:
+### 2. Install dependencies
 
+```bash
 npm install
+```
 
-Running the Development Environment
+### 3. Start the development environment
 
-Start both frontend and backend:
-
+```bash
 npm run dev
+```
 
-The services will be available at:
+The services run at:
 
-Frontend: http://localhost:5173
+- Frontend: http://localhost:5173
+- Backend: http://localhost:5000
 
-Backend: http://localhost:5000
+## Available Commands
 
-Individual Commands
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start frontend and backend concurrently |
+| `npm run dev:client` | Start only the frontend |
+| `npm run dev:server` | Start only the backend |
+| `npm run build` | Build the frontend |
+| `npm start` | Start the backend |
 
-Start both services:
+## Backend Health Check
 
-npm run dev
+Open:
 
-Start only the frontend:
-
-npm run dev:client
-
-Start only the backend:
-
-npm run dev:server
-
-Build the frontend:
-
-npm run build
-
-Start the backend:
-
-npm start
-
-Backend Health Check
-
-Open the following address in a browser:
-
+```text
 http://localhost:5000/health
+```
 
 Expected response:
 
+```json
 {
   "status": "ok",
   "service": "proxyspeak-server"
 }
+```
 
-Development Roadmap
+## Development Roadmap
 
-Foundation
+### Foundation
 
-Initialize monorepo
+- [x] Initialize monorepo
+- [x] Configure npm workspaces
+- [x] Create React/Vite frontend
+- [x] Create Express backend
+- [x] Create Canvas world prototype
+- [x] Add basic player movement
+- [x] Add health endpoint
+- [x] Verify local development
+- [x] Push initial project to GitHub
 
-Configure npm workspaces
+### Real-Time Multiplayer
 
-Create React/Vite frontend
+- [ ] Add Socket.io client integration
+- [ ] Establish client-server connection
+- [ ] Assign unique player IDs
+- [ ] Define socket event contracts
+- [ ] Handle player joins and leaves
+- [ ] Synchronize player positions
+- [ ] Render remote players
+- [ ] Handle disconnects and stale state
 
-Create Express backend
+### Proximity Audio
 
-Create Canvas world prototype
+- [ ] Define world coordinate and distance rules
+- [ ] Detect nearby players
+- [ ] Apply proximity thresholds
+- [ ] Add WebRTC signaling
+- [ ] Request microphone access
+- [ ] Establish peer-to-peer audio
+- [ ] Add mute controls
+- [ ] Add distance-based volume attenuation
+- [ ] Handle audio connection failures
 
-Add basic player movement
+### Persistence and Deployment
 
-Add health endpoint
+- [ ] Integrate MongoDB
+- [ ] Add persistent world data where required
+- [ ] Add authentication if required
+- [ ] Configure production environment
+- [ ] Build deployment configuration
+- [ ] Deploy frontend and backend
+- [ ] Add monitoring and error handling
 
-Verify local development
+## Development Guidelines
 
-Push initial project to GitHub
+- Keep rendering and networking logic separated.
+- Keep backend routes and real-time state management modular.
+- Validate all data received from clients.
+- Prefer explicit, documented event contracts.
+- Avoid premature infrastructure and unnecessary complexity.
+- Keep configuration in environment variables.
+- Verify each milestone locally before starting the next.
+- Update `contracts.md` whenever shared interfaces or behavior change.
 
-Real-Time Multiplayer
+## Documentation
 
-Add Socket.io client integration
+See [`contracts.md`](./contracts.md) for architecture decisions, component boundaries, shared data structures, planned Socket.io events, server authority rules, audio architecture, and development milestones.
 
-Establish client-server connection
-
-Assign unique player IDs
-
-Define socket event contracts
-
-Handle player joins and leaves
-
-Synchronize player positions
-
-Render remote players
-
-Handle disconnects and stale state
-
-Proximity Audio
-
-Define world coordinate and distance rules
-
-Detect nearby players
-
-Apply proximity thresholds
-
-Add WebRTC signaling
-
-Request microphone access
-
-Establish peer-to-peer audio
-
-Add mute controls
-
-Add distance-based volume attenuation
-
-Handle audio connection failures
-
-Persistence and Deployment
-
-Integrate MongoDB
-
-Add persistent world data where required
-
-Add authentication if required
-
-Configure production environment
-
-Build deployment configuration
-
-Deploy frontend and backend
-
-Add monitoring and error handling
-
-Development Guidelines
-
-Keep frontend rendering and networking logic separated.
-
-Keep backend routes and real-time state management modular.
-
-Validate data received from clients.
-
-Prefer explicit, documented event contracts.
-
-Avoid premature infrastructure.
-
-Keep configuration in environment variables.
-
-Verify each milestone locally before starting the next.
-
-Update technical contracts when shared interfaces or behavior change.
-
-Technical Documentation
-
-See contracts.md for:
-
-Architecture
-
-Component boundaries
-
-Shared data structures
-
-Planned Socket.io events
-
-Server authority rules
-
-Audio architecture
-
-Development milestones
-
-License
+## License
 
 License information will be added when the project reaches a release stage.
