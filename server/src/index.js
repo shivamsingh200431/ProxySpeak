@@ -4,6 +4,8 @@ import express from "express";
 import cors from "cors";
 import { Server } from "socket.io";
 
+import { registerSocketEvents } from './socket/events.js';
+
 const app = express();
 const httpServer = http.createServer(app);
 
