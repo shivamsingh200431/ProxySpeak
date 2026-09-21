@@ -1,6 +1,6 @@
 /**
  * Real-time event handling: connection, join-world, leave-world, disconnect.
- * Owner: Sagar — Week 1 (see contracts.md §8 and docs/week1-event-contract.md).
+ * Owner: Sagar — Week 1 (see contracts.md §8).
  *
  * Scope note: this module only tracks *who is connected and has joined*.
  * It intentionally does NOT own positions, spawn data, or the authoritative
