@@ -1,12 +1,23 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { SERVER_URL, socket } from "./socket/socket";
 
 const WIDTH = 900;
 const HEIGHT = 520;
 
 export default function App() {
   const canvasRef = useRef(null);
+  const nameRef = useRef("");
+  const joinFailedRef = useRef(false);
+
   const [position, setPosition] = useState({ x: 450, y: 260 });
+  const [name, setName] = useState("");
+  const [playerId, setPlayerId] = useState("");
   const [status, setStatus] = useState("Not connected");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    nameRef.current = name;
+  }, [name]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -15,7 +26,6 @@ export default function App() {
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
     ctx.fillStyle = "#111827";
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
     ctx.strokeStyle = "#374151";
 
     for (let x = 0; x <= WIDTH; x += 40) {
@@ -76,6 +86,88 @@ export default function App() {
     return () => window.removeEventListener("keydown", move);
   }, []);
 
+  useEffect(() => {
+    function handleConnect() {
+      setStatus("Connected");
+      setError("");
+      socket.emit("join-world", { name: nameRef.current.trim() });
+    }
+
+    function handleWorldJoined(player) {
+      setPlayerId(player.playerId);
+      setStatus(`Joined as ${player.name}`);
+      setError("");
+    }
+
+    function handleJoinError(payload) {
+      joinFailedRef.current = true;
+      setError(payload.message);
+      setStatus("Join failed");
+      setPlayerId("");
+      socket.disconnect();
+    }
+
+    function handleDisconnect() {
+      setPlayerId("");
+
+      if (!joinFailedRef.current) {
+        setStatus("Disconnected");
+      }
+    }
+
+    socket.on("connect", handleConnect);
+    socket.on("world-joined", handleWorldJoined);
+    socket.on("join-error", handleJoinError);
+    socket.on("disconnect", handleDisconnect);
+
+    return () => {
+      socket.off("connect", handleConnect);
+      socket.off("world-joined", handleWorldJoined);
+      socket.off("join-error", handleJoinError);
+      socket.off("disconnect", handleDisconnect);
+    };
+  }, []);
+
+  function handleNameChange(event) {
+    const value = event.target.value;
+    setName(value);
+    nameRef.current = value;
+
+    if (error) {
+      setError("");
+    }
+  }
+
+  function handleConnectClick() {
+    const trimmedName = name.trim();
+
+    if (!trimmedName) {
+      setError("Enter a name before joining.");
+      return;
+    }
+
+    if (trimmedName.length > 20) {
+      setError("Name must be between 1 and 20 characters.");
+      return;
+    }
+
+    nameRef.current = trimmedName;
+    joinFailedRef.current = false;
+    setError("");
+    setStatus("Connecting...");
+    socket.connect();
+  }
+
+  function handleLeave() {
+    if (socket.connected) {
+      socket.emit("leave-world");
+      socket.disconnect();
+    }
+  }
+
+  const isJoined = Boolean(playerId);
+  const isConnecting = status === "Connecting..." || status === "Connected";
+
   return (
     <main className="app">
       <header>
@@ -87,7 +179,10 @@ export default function App() {
           </p>
         </div>
 
-        <div className="status">{status}</div>
+        <div className={`status ${isJoined ? "status--online" : ""}`}>
+          <span className="status-dot" />
+          {status}
+        </div>
       </header>
 
       <section className="card">
@@ -97,16 +192,44 @@ export default function App() {
             <p>Move using WASD or arrow keys.</p>
           </div>
 
-          <button onClick={() => setStatus("Ready for Socket.io")}>
-            Initialize Connection
-          </button>
+          <div className="join-panel">
+            <label htmlFor="display-name">Display name</label>
+            <div className="join-controls">
+              <input
+                id="display-name"
+                value={name}
+                onChange={handleNameChange}
+                placeholder="Enter your name"
+                name="displayName"
+                autoComplete="off"
+                maxLength={20}
+                disabled={isJoined || isConnecting}
+              />
+
+              {isJoined ? (
+                <button
+                  className="button button--secondary"
+                  onClick={handleLeave}
+                >
+                  Leave World
+                </button>
+              ) : (
+                <button
+                  className="button"
+                  onClick={handleConnectClick}
+                  disabled={isConnecting}
+                >
+                  {isConnecting ? "Joining..." : "Join World"}
+                </button>
+              )}
+            </div>
+            <span className="input-hint">1–20 characters</span>
+          </div>
         </div>
 
-        <canvas
-          ref={canvasRef}
-          width={WIDTH}
-          height={HEIGHT}
-        />
+        {error && <p className="error">{error}</p>}
+
+        <canvas ref={canvasRef} width={WIDTH} height={HEIGHT} />
       </section>
 
       <section className="stats">
@@ -118,15 +241,19 @@ export default function App() {
         </div>
 
         <div>
-          <span>Audio Radius</span>
-          <strong>90 units</strong>
+          <span>Player ID</span>
+          <strong className="mono">{playerId || "—"}</strong>
         </div>
 
         <div>
-          <span>System</span>
-          <strong>Frontend Online</strong>
+          <span>World</span>
+          <strong>Single shared world</strong>
         </div>
       </section>
+
+      <p className="server-info">
+        Connected server <span>{SERVER_URL}</span>
+      </p>
     </main>
   );
 }

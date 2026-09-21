@@ -59,19 +59,20 @@ test("joins a player and emits the expected events", () => {
 
   socket.handlers.get("join-world")({ name: "  Shivam  " });
 
-  assert.deepEqual(connectedPlayers.get("socket-1"), {
-    id: "socket-1",
-    name: "Shivam",
-  });
+  const player = connectedPlayers.get("socket-1");
+
+  assert.equal(player.id, "socket-1");
+  assert.equal(player.name, "Shivam");
+  assert.match(player.playerId, /^[A-Z2-9]{6}$/);
 
   assert.deepEqual(socket.emitted[0], [
     "world-joined",
-    { id: "socket-1", name: "Shivam" },
+    { playerId: player.playerId, name: "Shivam" },
   ]);
 
   assert.deepEqual(socket.broadcast.emitted[0], [
     "player-joined",
-    { id: "socket-1", name: "Shivam" },
+    { playerId: player.playerId, name: "Shivam" },
   ]);
 
   assert.equal(io.emitted.length, 0);
@@ -96,6 +97,7 @@ test("rejects a duplicate join", () => {
   const { socket } = createHarness();
 
   socket.handlers.get("join-world")({ name: "Shivam" });
+  const firstPlayerId = connectedPlayers.get("socket-1").playerId;
   socket.emitted.length = 0;
 
   socket.handlers.get("join-world")({ name: "AnotherName" });
@@ -107,34 +109,35 @@ test("rejects a duplicate join", () => {
       message: "This connection has already joined the world.",
     },
   ]);
-  assert.deepEqual(connectedPlayers.get("socket-1"), {
-    id: "socket-1",
-    name: "Shivam",
-  });
+  assert.equal(connectedPlayers.get("socket-1").id, "socket-1");
+  assert.equal(connectedPlayers.get("socket-1").name, "Shivam");
+  assert.equal(connectedPlayers.get("socket-1").playerId, firstPlayerId);
 });
 
 test("removes a joined player and broadcasts player-left on leave", () => {
   const { io, socket } = createHarness();
 
   socket.handlers.get("join-world")({ name: "Shivam" });
+  const playerId = connectedPlayers.get("socket-1").playerId;
   io.emitted.length = 0;
 
   socket.handlers.get("leave-world")();
 
   assert.equal(connectedPlayers.has("socket-1"), false);
-  assert.deepEqual(io.emitted[0], ["player-left", { id: "socket-1" }]);
+  assert.deepEqual(io.emitted[0], ["player-left", { playerId }]);
 });
 
 test("removes a joined player and broadcasts player-left on disconnect", () => {
   const { io, socket } = createHarness();
 
   socket.handlers.get("join-world")({ name: "Shivam" });
+  const playerId = connectedPlayers.get("socket-1").playerId;
   io.emitted.length = 0;
 
   socket.handlers.get("disconnect")("client namespace disconnect");
 
   assert.equal(connectedPlayers.has("socket-1"), false);
-  assert.deepEqual(io.emitted[0], ["player-left", { id: "socket-1" }]);
+  assert.deepEqual(io.emitted[0], ["player-left", { playerId }]);
 });
 
 test("does not broadcast player-left when disconnecting before joining", () => {

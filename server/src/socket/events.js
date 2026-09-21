@@ -12,10 +12,27 @@
  * top of this once that registry exists.
  */
 
-import { validateJoinWorldPayload } from './validators.js';
+import crypto from "node:crypto";
+import { validateJoinWorldPayload } from "./validators.js";
 
-// socket.id -> { id, name }
+const PLAYER_ID_LENGTH = 6;
+const PLAYER_ID_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+// socket.id -> { id, playerId, name }
 export const connectedPlayers = new Map();
+
+function generatePlayerId() {
+  let playerId;
+
+  do {
+    const bytes = crypto.randomBytes(PLAYER_ID_LENGTH);
+    playerId = Array.from(bytes, (byte) =>
+      PLAYER_ID_ALPHABET[byte % PLAYER_ID_ALPHABET.length]
+    ).join("");
+  } while ([...connectedPlayers.values()].some((player) => player.playerId === playerId));
+
+  return playerId;
+}
 
 /**
  * Attaches connection/join-world/leave-world/disconnect handlers to the
@@ -65,15 +82,15 @@ function handleJoinWorld(io, socket, payload) {
     return;
   }
 
-  const player = { id: socket.id, name: result.name };
+  const player = { id: socket.id, playerId: generatePlayerId(), name: result.name };
   connectedPlayers.set(socket.id, player);
 
   // Ack to the joining client.
-  socket.emit('world-joined', player);
+  socket.emit("world-joined", { playerId: player.playerId, name: player.name });
   // Tell everyone else a new player arrived.
-  socket.broadcast.emit('player-joined', player);
+  socket.broadcast.emit("player-joined", { playerId: player.playerId, name: player.name });
 
-  console.log(`[socket] ${player.name} (${player.id}) joined the world`);
+  console.log(`[socket] ${player.name} (${player.playerId}) joined the world [socket: ${player.id}]`);
 }
 
 function handlePlayerExit(io, socket, cause) {
@@ -86,6 +103,6 @@ function handlePlayerExit(io, socket, cause) {
   }
 
   connectedPlayers.delete(socket.id);
-  io.emit('player-left', { id: player.id });
-  console.log(`[socket] ${player.name} (${player.id}) left the world (${cause})`);
+  io.emit("player-left", { playerId: player.playerId });
+  console.log(`[socket] ${player.name} (${player.playerId}) left the world (${cause})`);
 }
