@@ -1,51 +1,82 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import test from "node:test";
+import assert from "node:assert/strict";
+
 import { validateJoinWorldPayload } from "../src/socket/validators.js";
 
-describe("validateJoinWorldPayload", () => {
-  it("accepts a valid name and trims surrounding whitespace", () => {
-    expect(validateJoinWorldPayload({ name: "  Shivam  " })).toEqual({
-      valid: true,
-      name: "Shivam",
-    });
+test("validateJoinWorldPayload", async (t) => {
+  await t.test("accepts a valid name and trims surrounding whitespace", () => {
+    assert.deepEqual(
+      validateJoinWorldPayload({ name: "  Shivam  " }),
+      {
+        valid: true,
+        name: "Shivam",
+      }
+    );
   });
 
-  it("rejects a null payload", () => {
-    expect(validateJoinWorldPayload(null)).toMatchObject({
-      valid: false,
-      code: "INVALID_PAYLOAD",
-    });
+  await t.test("rejects a null payload", () => {
+    const result = validateJoinWorldPayload(null);
+
+  assert.equal(result.valid, false);
+  assert.equal(result.code, "INVALID_PAYLOAD");
+  assert.equal(typeof result.message, "string");
+});
+
+  await t.test("rejects arrays", () => {
+    const result = validateJoinWorldPayload(null);
+
+assert.equal(result.valid, false);
+assert.equal(result.code, "INVALID_PAYLOAD");
+assert.equal(typeof result.message, "string");
   });
 
-  it("rejects arrays", () => {
-    expect(validateJoinWorldPayload([])).toMatchObject({
-      valid: false,
-      code: "INVALID_PAYLOAD",
-    });
+  await t.test("rejects a missing or non-string name", () => {
+    assert.equal(
+      validateJoinWorldPayload({}).valid,
+      false
+    );
+
+    assert.equal(
+      validateJoinWorldPayload({}).code,
+      "INVALID_NAME"
+    );
+
+    assert.equal(
+      validateJoinWorldPayload({ name: 123 }).valid,
+      false
+    );
+
+    assert.equal(
+      validateJoinWorldPayload({ name: 123 }).code,
+      "INVALID_NAME"
+    );
   });
 
-  it("rejects a missing or non-string name", () => {
-    expect(validateJoinWorldPayload({})).toMatchObject({
-      valid: false,
-      code: "INVALID_NAME",
-    });
+  await t.test("rejects blank names", () => {
+    assert.equal(
+      validateJoinWorldPayload({ name: "   " }).valid,
+      false
+    );
 
-    expect(validateJoinWorldPayload({ name: 123 })).toMatchObject({
-      valid: false,
-      code: "INVALID_NAME",
-    });
+    assert.equal(
+      validateJoinWorldPayload({ name: "   " }).code,
+      "INVALID_NAME"
+    );
   });
 
-  it("rejects blank names", () => {
-    expect(validateJoinWorldPayload({ name: "   " })).toMatchObject({
-      valid: false,
-      code: "INVALID_NAME",
-    });
-  });
+  await t.test("rejects names longer than 20 characters", () => {
+    assert.equal(
+      validateJoinWorldPayload({
+        name: "123456789012345678901",
+      }).valid,
+      false
+    );
 
-  it("rejects names longer than 20 characters", () => {
-    expect(validateJoinWorldPayload({ name: "123456789012345678901" })).toMatchObject({
-      valid: false,
-      code: "INVALID_NAME",
-    });
+    assert.equal(
+      validateJoinWorldPayload({
+        name: "123456789012345678901",
+      }).code,
+      "INVALID_NAME"
+    );
   });
 });
