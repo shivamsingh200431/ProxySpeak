@@ -17,66 +17,37 @@ test("validateJoinWorldPayload", async (t) => {
   await t.test("rejects a null payload", () => {
     const result = validateJoinWorldPayload(null);
 
-  assert.equal(result.valid, false);
-  assert.equal(result.code, "INVALID_PAYLOAD");
-  assert.equal(typeof result.message, "string");
-});
+    assert.equal(result.valid, false);
+    assert.equal(result.code, "INVALID_PAYLOAD");
+    assert.equal(typeof result.message, "string");
+  });
 
   await t.test("rejects arrays", () => {
-    const result = validateJoinWorldPayload(null);
+    const result = validateJoinWorldPayload([]);
 
-assert.equal(result.valid, false);
-assert.equal(result.code, "INVALID_PAYLOAD");
-assert.equal(typeof result.message, "string");
+    assert.equal(result.valid, false);
+    assert.equal(result.code, "INVALID_PAYLOAD");
+    assert.equal(typeof result.message, "string");
   });
 
   await t.test("rejects a missing or non-string name", () => {
-    assert.equal(
-      validateJoinWorldPayload({}).valid,
-      false
-    );
-
-    assert.equal(
-      validateJoinWorldPayload({}).code,
-      "INVALID_NAME"
-    );
-
-    assert.equal(
-      validateJoinWorldPayload({ name: 123 }).valid,
-      false
-    );
-
-    assert.equal(
-      validateJoinWorldPayload({ name: 123 }).code,
-      "INVALID_NAME"
-    );
+    assert.equal(validateJoinWorldPayload({}).valid, false);
+    assert.equal(validateJoinWorldPayload({}).code, "INVALID_NAME");
+    assert.equal(validateJoinWorldPayload({ name: 123 }).valid, false);
+    assert.equal(validateJoinWorldPayload({ name: 123 }).code, "INVALID_NAME");
   });
 
   await t.test("rejects blank names", () => {
-    assert.equal(
-      validateJoinWorldPayload({ name: "   " }).valid,
-      false
-    );
-
-    assert.equal(
-      validateJoinWorldPayload({ name: "   " }).code,
-      "INVALID_NAME"
-    );
+    assert.equal(validateJoinWorldPayload({ name: "   " }).valid, false);
+    assert.equal(validateJoinWorldPayload({ name: "   " }).code, "INVALID_NAME");
   });
 
   await t.test("rejects names longer than 20 characters", () => {
-    assert.equal(
-      validateJoinWorldPayload({
-        name: "123456789012345678901",
-      }).valid,
-      false
-    );
+    const result = validateJoinWorldPayload({
+      name: "123456789012345678901",
+    });
 
-    assert.equal(
-      validateJoinWorldPayload({
-        name: "123456789012345678901",
-      }).code,
-      "INVALID_NAME"
-    );
+    assert.equal(result.valid, false);
+    assert.equal(result.code, "INVALID_NAME");
   });
 });
