@@ -1,8 +1,10 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 import http from "node:http";
 import express from "express";
 import cors from "cors";
 import { Server } from "socket.io";
+
+import { registerSocketEvents } from "./socket/events.js";
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -34,18 +36,8 @@ const io = new Server(httpServer, {
   }
 });
 
-io.on("connection", (socket) => {
-  console.log(`Socket connected: ${socket.id}`);
-
-  socket.emit("server:welcome", {
-    socketId: socket.id,
-    message: "Connected to ProxySpeak server"
-  });
-
-  socket.on("disconnect", (reason) => {
-    console.log(`Socket disconnected: ${socket.id} - ${reason}`);
-  });
-});
+// Socket.io connection/join/leave lifecycle is owned by the real-time event module.
+registerSocketEvents(io);
 
 httpServer.listen(PORT, () => {
   console.log(`ProxySpeak server running on http://localhost:${PORT}`);

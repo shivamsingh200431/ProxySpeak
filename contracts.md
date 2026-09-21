@@ -137,29 +137,40 @@ Additional fields may be introduced when required, but the initial movement mode
 
 The server is responsible for maintaining authoritative shared player state.
 
-## 8. Planned Socket.io Event Categories
+## 8. Socket.io Event Contract
 
-The initial real-time layer is expected to support the following categories.
+Finalized for the connection/join/leave layer (Milestone 2, Week 1). Movement
+and full presence-list events will be appended here in Week 2 once the
+player registry (Milestone 2, shared world state) lands.
 
-### Connection events
+### Client → Server
 
-- Player connected
-- Player disconnected
-- Initial world state received
+| Event | Payload | Notes |
+| --- | --- | --- |
+| `join-world` | `{ name: string }` | 1–20 chars after trim, required. Rejected if the connection already joined. |
+| `leave-world` | *(none)* | Explicit, intentional leave (e.g. a "Leave" button). Distinct from a network disconnect. |
 
-### Movement events
+### Server → Client
 
-- Client movement update
-- Server-approved movement update
-- Broadcast movement update
+| Event | Payload | Sent to |
+| --- | --- | --- |
+| `world-joined` | `{ id: string, name: string }` | Sender only — ack of a successful join. |
+| `player-joined` | `{ id: string, name: string }` | Broadcast to everyone except sender. |
+| `player-left` | `{ id: string }` | Broadcast to everyone (covers both `leave-world` and `disconnect`). |
+| `join-error` | `{ code: string, message: string }` | Sender only. `code` is one of `INVALID_PAYLOAD`, `INVALID_NAME`, `ALREADY_JOINED`. |
 
-### Presence events
+### Built-in Socket.io lifecycle (not custom events)
 
-- Player joined
-- Player left
-- Current players list
+- `connection` — fires when a socket connects, before any world join.
+- `disconnect` — fires on network-level disconnect (tab close, network drop, etc.). Handled identically to `leave-world` for cleanup/broadcast purposes.
 
-Exact event names and payload schemas must be finalized before Socket.io implementation.
+### Scope boundary
+
+The connection/join/leave handling (`server/src/socket/events.js`) keeps a
+minimal in-memory map of `socket.id -> { id, name }` purely to validate and
+demo this layer. It does not own positions, spawn coordinates, or the
+authoritative world-state model — that is the Milestone 2 player registry.
+When the registry lands, this map is merged into it, not duplicated.
 
 ## 9. Server Authority
 
