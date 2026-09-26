@@ -1,3 +1,4 @@
+import AudioMockUI from "./components/AudioMockUI";
 import { useEffect, useRef, useState } from "react";
 import { SERVER_URL, socket } from "./socket/socket";
 
@@ -254,6 +255,8 @@ export default function App() {
       <p className="server-info">
         Connected server <span>{SERVER_URL}</span>
       </p>
+
+      <AudioMockUI/>
     </main>
   );
 }
