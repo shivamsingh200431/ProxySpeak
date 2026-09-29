@@ -72,4 +72,4 @@ The visual reference is the **connected-room traversal structure** of social mul
 - Movement speed is increased from 3.5 to 4.2 pixels/frame to keep traversal responsive across the larger space.
 - Collision remains client-side movement/presentation logic; the server still owns shared player position state.
 
-This is still a prototype layout. The next map-art iteration can replace the SVG with a proper Tiled-authored map while preserving the movement and multiplayer contracts. Tiled's JSON map format supports tile layers and object layers, including positioned objects that can carry collision-related data. citeturn1search0turn1search4
+This is still a prototype layout. The next map-art iteration can replace the SVG with a proper Tiled-authored map while preserving the movement and multiplayer contracts. Tiled's JSON map format supports tile layers and object layers, including positioned objects that can carry collision-related data.
