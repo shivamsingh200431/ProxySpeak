@@ -1,18 +1,15 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { MOVE_SPEED, SPAWN_POSITION } from "../constants/world";
 import { getWorldViewport } from "../utils/worldViewport";
+import { canOccupy } from "../utils/worldCollision";
 
-/**
- * Custom hook to handle continuous, frame-smooth keyboard movement.
- * Tracks active keys (WASD + Arrow keys) and updates player position with
- * strict world boundary enforcement and diagonal normalization.
- */
+const PLAYER_RADIUS = 12;
+
 export function useMovement(initialPosition = SPAWN_POSITION, activePanel = null) {
   const [position, setPosition] = useState(initialPosition);
-  const [heading, setHeading] = useState(0); // in radians
+  const [heading, setHeading] = useState(0);
   const [activeKeys, setActiveKeys] = useState({});
 
-  // Use refs to track state within the requestAnimationFrame loop
   const positionRef = useRef(initialPosition);
   const keysRef = useRef({});
   const animFrameRef = useRef(null);
@@ -25,23 +22,16 @@ export function useMovement(initialPosition = SPAWN_POSITION, activePanel = null
 
   useEffect(() => {
     function handleKeyDown(e) {
-      // Ignore key events when user is typing in an input or textarea
-      if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) {
-        return;
-      }
+      if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
 
-      // Prevent browser scroll on arrow keys or space while playing
-      if (
-        ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key) &&
-        e.target === document.body
-      ) {
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key) &&
+          e.target === document.body) {
         e.preventDefault();
       }
 
       const key = e.key.toLowerCase();
       if (!keysRef.current[key]) {
         keysRef.current[key] = true;
-        // Keep a copy in React state for HUD / visual keycap highlighting
         setActiveKeys({ ...keysRef.current });
       }
     }
@@ -55,7 +45,6 @@ export function useMovement(initialPosition = SPAWN_POSITION, activePanel = null
     }
 
     function handleBlur() {
-      // Clear all keys when tab loses focus to prevent stuck movement
       keysRef.current = {};
       setActiveKeys({});
     }
@@ -74,14 +63,19 @@ export function useMovement(initialPosition = SPAWN_POSITION, activePanel = null
   useEffect(() => {
     const viewport = getWorldViewport({ panel: activePanel });
     const current = positionRef.current;
-    const clamped = {
+    const next = {
       x: Math.max(viewport.minX, Math.min(viewport.maxX, current.x)),
       y: Math.max(viewport.minY, Math.min(viewport.maxY, current.y))
     };
 
-    if (clamped.x !== current.x || clamped.y !== current.y) {
-      positionRef.current = clamped;
-      setPosition(clamped);
+    if (!canOccupy(next.x, next.y, PLAYER_RADIUS)) {
+      next.x = SPAWN_POSITION.x;
+      next.y = SPAWN_POSITION.y;
+    }
+
+    if (next.x !== current.x || next.y !== current.y) {
+      positionRef.current = next;
+      setPosition(next);
     }
   }, [activePanel]);
 
@@ -89,41 +83,42 @@ export function useMovement(initialPosition = SPAWN_POSITION, activePanel = null
     let lastTime = performance.now();
 
     function updatePhysics(currentTime) {
-      const delta = Math.min((currentTime - lastTime) / 16.666, 2.0); // normalize against 60fps
+      const delta = Math.min((currentTime - lastTime) / 16.666, 2);
       lastTime = currentTime;
 
-      const keys = keysRef.current;
       let dx = 0;
       let dy = 0;
+      const keys = keysRef.current;
 
-      if (keys["w"] || keys["arrowup"]) dy -= 1;
-      if (keys["s"] || keys["arrowdown"]) dy += 1;
-      if (keys["a"] || keys["arrowleft"]) dx -= 1;
-      if (keys["d"] || keys["arrowright"]) dx += 1;
+      if (keys.w || keys.arrowup) dy -= 1;
+      if (keys.s || keys.arrowdown) dy += 1;
+      if (keys.a || keys.arrowleft) dx -= 1;
+      if (keys.d || keys.arrowright) dx += 1;
 
-      if (dx !== 0 || dy !== 0) {
-        // Normalize diagonal movement speed
-        if (dx !== 0 && dy !== 0) {
-          const invSqrt2 = 0.70710678;
-          dx *= invSqrt2;
-          dy *= invSqrt2;
+      if (dx || dy) {
+        if (dx && dy) {
+          dx *= 0.70710678;
+          dy *= 0.70710678;
         }
 
-        const moveDistance = MOVE_SPEED * delta;
-        const currentPos = positionRef.current;
-
+        const distance = MOVE_SPEED * delta;
+        const current = positionRef.current;
         const viewport = getWorldViewport({ panel: activePanel });
-        const minX = viewport.minX;
-        const maxX = viewport.maxX;
-        const minY = viewport.minY;
-        const maxY = viewport.maxY;
 
-        const nextX = Math.max(minX, Math.min(maxX, currentPos.x + dx * moveDistance));
-        const nextY = Math.max(minY, Math.min(maxY, currentPos.y + dy * moveDistance));
+        const targetX = Math.max(viewport.minX, Math.min(viewport.maxX, current.x + dx * distance));
+        const targetY = Math.max(viewport.minY, Math.min(viewport.maxY, current.y + dy * distance));
 
-        if (nextX !== currentPos.x || nextY !== currentPos.y) {
-          positionRef.current = { x: nextX, y: nextY };
-          setPosition({ x: nextX, y: nextY });
+        // Resolve axes independently so the player can slide along walls.
+        let nextX = current.x;
+        let nextY = current.y;
+
+        if (canOccupy(targetX, current.y, PLAYER_RADIUS)) nextX = targetX;
+        if (canOccupy(nextX, targetY, PLAYER_RADIUS)) nextY = targetY;
+
+        if (nextX !== current.x || nextY !== current.y) {
+          const next = { x: nextX, y: nextY };
+          positionRef.current = next;
+          setPosition(next);
           setHeading(Math.atan2(dy, dx));
         }
       }
@@ -132,18 +127,10 @@ export function useMovement(initialPosition = SPAWN_POSITION, activePanel = null
     }
 
     animFrameRef.current = requestAnimationFrame(updatePhysics);
-
     return () => {
-      if (animFrameRef.current) {
-        cancelAnimationFrame(animFrameRef.current);
-      }
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
   }, [activePanel]);
 
-  return {
-    position,
-    heading,
-    activeKeys,
-    resetPosition
-  };
+  return { position, heading, activeKeys, resetPosition };
 }
