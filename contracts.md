@@ -126,71 +126,99 @@ The following baseline has been implemented and locally verified:
 
 ## 7. Real-Time World Model
 
-The planned shared world contains connected players.
+The shared world model is now implemented as in-memory server state.
 
-Each player will have, at minimum:
+Each connected world member has:
 
-```ts
-{
-  id: string,
-  x: number,
-  y: number
-}
-```
+  {
+    id: string,
+    playerId: string,
+    name: string,
+    worldId: string,
+    x: number,
+    y: number
+  }
 
-Additional fields may be introduced when required, but the initial movement model should remain minimal.
+The server owns world membership and the current positions of connected members.
 
-The server is responsible for maintaining authoritative shared player state.
+### World lifecycle
 
-### Current frontend movement prototype
+- A user can create a world.
+- A created world receives a server-generated world ID and invite code.
+- The creator automatically joins the created world.
+- A second user can join by providing the invite code.
+- Empty worlds are removed from the in-memory registry when the final member leaves.
+- Persistence is intentionally deferred to the MongoDB milestone.
 
-The current frontend movement implementation is a local visual prototype. It updates the local Canvas position using keyboard input, but it does not synchronize coordinates with the server or other clients.
+### Movement
 
-Position synchronization, remote-player state, and authoritative movement validation remain Week 2 work.
+The frontend continues to calculate smooth local movement with WASD/arrow controls.
+
+While inside a world, the client sends throttled position updates to the server. The server clamps positions to world boundaries and broadcasts accepted positions only to members of the same world.
+
+### Current limitation
+
+The current world registry is intentionally in-memory. Restarting the server removes active worlds and invite codes. Durable world persistence and authentication remain future work.
 
 ## 8. Socket.io Event Contract
 
-Finalized for the connection/join/leave layer (Milestone 2, Week 1). Movement and full presence-list events will be appended here in Week 2 once the player registry (shared world state) lands.
+The Socket.io contract now covers world creation, world joining, presence, and movement.
 
 ### Client → Server
 
 | Event | Payload | Notes |
 | --- | --- | --- |
-| `join-world` | `{ name: string }` | 1–20 chars after trim, required. Rejected if the connection already joined. |
-| `leave-world` | *(none)* | Explicit, intentional leave. Distinct from a network disconnect. |
+| create-world | { name: string } | Creates a new in-memory world and automatically joins the creator. |
+| join-world | { name: string, inviteCode: string } | Joins an existing world by invite code. Name remains 1–20 chars after trim. |
+| player-moved | { x: number, y: number } | Accepted only for a member currently inside a world. Server clamps coordinates. |
+| leave-world | none | Explicitly leaves the current world. |
 
 ### Server → Client
 
 | Event | Payload | Sent to |
 | --- | --- | --- |
-| `world-joined` | `{ playerId: string, name: string }` | Sender only — successful join acknowledgement. `playerId` is a server-generated 6-character public player identifier. The internal Socket.io ID is never exposed through this contract. |
-| `player-joined` | `{ playerId: string, name: string }` | Everyone except sender. |
-| `player-left` | `{ playerId: string }` | Everyone, for explicit leave and disconnect cleanup. |
-| `join-error` | `{ code: string, message: string }` | Sender only. Codes: `INVALID_PAYLOAD`, `INVALID_NAME`, `ALREADY_JOINED`. |
+| world-created | { worldId, inviteCode, name } | Creator only. |
+| world-joined | { worldId, inviteCode, worldName, owner, playerId, name, x, y, players } | Joining client only. |
+| player-joined | { playerId, name, x, y } | Other members of the same world. |
+| player-moved | { playerId, x, y } | Other members of the same world. |
+| player-left | { playerId } | Remaining members of the same world. |
+| join-error | { code, message } | Sender only for invalid world join requests. |
+| world-error | { code, message } | Sender only for invalid world creation/lifecycle requests. |
 
-### Built-in Socket.io lifecycle
+### World error codes
 
-- `connection` — fires when the client establishes a Socket.io connection.
-- `disconnect` — fires when the client loses or closes the connection.
+- INVALID_PAYLOAD
+- INVALID_NAME
+- INVITE_CODE_REQUIRED
+- WORLD_NOT_FOUND
+- ALREADY_IN_WORLD
+
+### Built-in lifecycle
+
+- connection — fires when the client establishes a Socket.io connection.
+- disconnect — removes the member from their world and notifies remaining members.
 
 ### Client connection behavior
 
-- The client does not connect automatically on page load.
-- The user enters a display name and selects **Join World**.
-- The client trims the name and rejects empty names or names longer than 20 characters before opening the socket connection.
-- After `connect`, the client emits `join-world` with the display name.
-- A successful `world-joined` response stores the server-generated 6-character `playerId` as the local display ID. The internal Socket.io connection ID remains server-only.
-- Player IDs use uppercase letters and digits, excluding visually ambiguous characters such as `I`, `O`, `0`, and `1`.
-- Week 1 uses one implicit shared world; a separate `worldId` is intentionally not defined yet.
-- A future multi-world model will introduce an explicit world identifier as part of the authoritative world registry.
-- `join-error` is shown to the user and the socket is disconnected.
-- **Leave World** emits `leave-world` before closing the socket.
-- The client uses `VITE_SERVER_URL` when configured and defaults to `http://localhost:5000`.
+- The client does not connect automatically on /app load.
+- The first application state is Join a World.
+- Creating a world connects the socket and emits create-world.
+- Joining a world connects the socket and emits join-world with the display name and invite code.
+- A successful world-joined response establishes the active world and initial presence list.
+- The client only renders remote people received from the server for the active world.
+- The client emits movement updates only after successfully joining a world.
+- Leaving a world emits leave-world before closing the socket.
+
+### Public identifiers
+
+- Player IDs are 6-character uppercase public IDs.
+- World IDs and invite codes are 6-character uppercase public codes.
+- Ambiguous characters such as I, O, 0, and 1 are excluded.
+- Internal Socket.io connection IDs remain server-only.
 
 ### Scope boundary
 
-Week 1 establishes connection and join/leave behavior. Position synchronization, remote-player state, and the authoritative player registry are Week 2 work.
-
+World creation, invitation, membership, movement synchronization, and remote presence are now part of the real-time baseline. Proximity filtering and WebRTC audio remain future milestones.
 ## 9. Server Authority
 
 The server is authoritative for shared world state.
@@ -512,13 +540,16 @@ The workspace shell includes:
 
 ### Functionality boundary
 
-The new UI is a presentation layer over the existing prototype functionality.
+The workspace UI is a functional layer over the current real-time prototype.
 
-- People data in the workspace sidebar/panel is partly preview data until remote presence is implemented.
-- Voice controls remain mock/presentation controls until the WebRTC/audio milestones are implemented.
-- The 90u proximity range remains visual-only.
+- People data comes from the active world's server presence registry.
+- The People panel reports actual members in the current world.
+- The Invite panel exposes the active world's real invite code.
+- The Map panel reflects the current local position.
 - Settings transparency is functional and local to the current workspace session.
-- No new UI element may imply that microphone capture, peer audio, or server-side proximity filtering is already operational.
+- Movement is synchronized to other members of the same world.
+- The 90u proximity range remains visual-only.
+- Microphone capture, WebRTC audio, emotes, video permissions, and other future interaction controls are not exposed as active controls until their underlying functionality exists.
 
 ### Responsive behavior
 
