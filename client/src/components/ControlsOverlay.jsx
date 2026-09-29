@@ -1,11 +1,9 @@
 /**
- * ControlsOverlay component providing visual keycaps (lighting up on press),
- * player name configuration, and quick world actions.
+ * ControlsOverlay component providing visual movement keycaps and quick world actions.
+ * Player identity is controlled by the contract-compliant Join World field in App.
  */
 export default function ControlsOverlay({
   activeKeys = {},
-  playerName,
-  onNameChange,
   onResetPosition,
   showProximityZone,
   onToggleProximityZone
@@ -18,19 +16,6 @@ export default function ControlsOverlay({
   return (
     <div className="controls-overlay">
       <div className="controls-left">
-        <div className="player-input-group">
-          <label htmlFor="playerNameInput">Player Tag</label>
-          <input
-            id="playerNameInput"
-            type="text"
-            maxLength={18}
-            value={playerName}
-            onChange={(e) => onNameChange(e.target.value)}
-            placeholder="Enter your name"
-            className="player-name-input"
-          />
-        </div>
-
         <div className="keycap-group">
           <span className="keycap-label">Movement:</span>
           <div className="keycaps">
@@ -47,7 +32,7 @@ export default function ControlsOverlay({
           type="button"
           onClick={onToggleProximityZone}
           className={`btn-secondary ${showProximityZone ? "active" : ""}`}
-          title="Toggle proximity audio radius visualization"
+          title="Toggle the visual proximity radius"
         >
           {showProximityZone ? "Radius: Visible" : "Radius: Hidden"}
         </button>
