@@ -72,6 +72,20 @@ export function useMovement(initialPosition = SPAWN_POSITION, activePanel = null
   }, []);
 
   useEffect(() => {
+    const viewport = getWorldViewport({ panel: activePanel });
+    const current = positionRef.current;
+    const clamped = {
+      x: Math.max(viewport.minX, Math.min(viewport.maxX, current.x)),
+      y: Math.max(viewport.minY, Math.min(viewport.maxY, current.y))
+    };
+
+    if (clamped.x !== current.x || clamped.y !== current.y) {
+      positionRef.current = clamped;
+      setPosition(clamped);
+    }
+  }, [activePanel]);
+
+  useEffect(() => {
     let lastTime = performance.now();
 
     function updatePhysics(currentTime) {
