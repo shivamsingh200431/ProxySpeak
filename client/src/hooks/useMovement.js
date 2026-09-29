@@ -63,7 +63,8 @@ export function useMovement(initialPosition = SPAWN_POSITION) {
     let lastTime = performance.now();
 
     function updatePhysics(currentTime) {
-      const delta = Math.min((currentTime - lastTime) / 16.666, 2);
+      // Real elapsed seconds make movement independent of display refresh rate.
+      const dt = Math.min((currentTime - lastTime) / 1000, 0.05);
       lastTime = currentTime;
 
       let dx = 0;
@@ -81,7 +82,7 @@ export function useMovement(initialPosition = SPAWN_POSITION) {
           dy *= 0.70710678;
         }
 
-        const distance = MOVE_SPEED * delta;
+        const distance = MOVE_SPEED * dt;
         const current = positionRef.current;
         const targetX = Math.max(WORLD_BOUNDS.minX, Math.min(WORLD_BOUNDS.maxX, current.x + dx * distance));
         const targetY = Math.max(WORLD_BOUNDS.minY, Math.min(WORLD_BOUNDS.maxY, current.y + dy * distance));
