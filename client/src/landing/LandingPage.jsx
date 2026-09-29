@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { motion } from "motion/react";
 import Lenis from "lenis";
 import "lenis/dist/lenis.css";
 
@@ -8,6 +9,34 @@ const people = [
   { name: "PRIYA", role: "Design", x: "76%", y: "67%", state: "far" },
   { name: "JORDAN", role: "Marketing", x: "43%", y: "72%", state: "far" },
 ];
+
+function MotionReveal({ children, className = "", delay = 0, y = 42 }) {
+  return (
+    <motion.div
+      className={className}
+      initial={{ opacity: 0, y, filter: "blur(8px)" }}
+      whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      viewport={{ once: true, amount: 0.2 }}
+      transition={{ duration: 0.9, delay, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function MagneticCTA({ children, className = "", href = "/app" }) {
+  return (
+    <motion.a
+      className={className}
+      href={href}
+      whileHover={{ y: -4, scale: 1.025 }}
+      whileTap={{ scale: 0.97 }}
+      transition={{ type: "spring", stiffness: 420, damping: 24 }}
+    >
+      {children}
+    </motion.a>
+  );
+}
 
 function Reveal({ children, className = "" }) {
   const ref = useRef(null);
@@ -49,7 +78,8 @@ function CinematicTransition({ eyebrow, word, title, copy, accent = "red" }) {
 
     const update = () => {
       const rect = node.getBoundingClientRect();
-      const progress = Math.min(1, Math.max(0, -rect.top / rect.height));
+      const rawProgress = Math.min(1, Math.max(0, -rect.top / rect.height));
+      const progress = Math.min(1, Math.max(0, (rawProgress - 0.04) / 0.58));
 
       node.style.setProperty("--cinematic-progress", progress.toFixed(4));
       frame = 0;
@@ -116,8 +146,11 @@ export default function LandingPage() {
     const lenis = new Lenis({
       autoRaf: true,
       anchors: true,
-      duration: 1.15,
+      duration: 1.25,
       smoothWheel: true,
+      syncTouch: true,
+      wheelMultiplier: 0.9,
+      touchMultiplier: 1.05,
     });
 
     return () => {
@@ -148,41 +181,49 @@ export default function LandingPage() {
           <a href="#technology">Technology</a>
         </nav>
 
-        <a className="nav-cta" href="/app">
+        <MagneticCTA className="nav-cta" href="/app">
           Enter workspace <span>↗</span>
-        </a>
+        </MagneticCTA>
       </header>
 
       <main>
         <section className="landing-hero" id="top">
-          <div className="hero-copy">
-            <div className="live-pill">
+          <motion.div
+            className="hero-copy"
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: {},
+              visible: { transition: { staggerChildren: 0.09, delayChildren: 0.15 } },
+            }}
+          >
+            <motion.div className="live-pill" variants={{ hidden: { opacity: 0, y: 18 }, visible: { opacity: 1, y: 0 } }}>
               <span className="live-dot" />
               PROXIMITY-BASED VOICE
-            </div>
+            </motion.div>
 
-            <h1>
+            <motion.h1 variants={{ hidden: { opacity: 0, y: 32, filter: "blur(10px)" }, visible: { opacity: 1, y: 0, filter: "blur(0px)" } }}>
               <span>Talk to people</span>
               <span className="hero-accent">near you.</span>
-            </h1>
+            </motion.h1>
 
-            <p>
+            <motion.p variants={{ hidden: { opacity: 0, y: 22 }, visible: { opacity: 1, y: 0 } }}>
               ProxySpeak turns distance into a communication layer. Walk closer,
               start talking. Walk away, the conversation fades naturally.
             </p>
 
             <div className="hero-actions">
-              <a className="primary-cta" href="/app">
+              <MagneticCTA className="primary-cta" href="/app">
                 Enter ProxySpeak
                 <span>→</span>
-              </a>
+              </MagneticCTA>
               <a className="text-cta" href="#how-it-works">
                 See how it works
                 <span>↓</span>
               </a>
-            </div>
+            </motion.div>
 
-            <div className="hero-proof">
+            <motion.div className="hero-proof" variants={{ hidden: { opacity: 0, y: 18 }, visible: { opacity: 1, y: 0 } }}>
               <div className="proof-item">
                 <strong>90u</strong>
                 <span>proximity range</span>
@@ -197,10 +238,15 @@ export default function LandingPage() {
                 <strong>WEBRTC</strong>
                 <span>voice layer</span>
               </div>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
 
-          <div className="hero-visual" aria-label="Animated proximity workspace preview">
+          <motion.div
+            className="hero-visual"
+            initial={{ opacity: 0, y: 50, rotateX: 8, rotateY: -8, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, rotateX: 2, rotateY: -4, scale: 1 }}
+            transition={{ duration: 1.2, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          > aria-label="Animated proximity workspace preview">
             <div className="hero-visual__topline">
               <span>LIVE SPACE / EXECUTIVE LOUNGE</span>
               <span><i className="mini-dot" /> 8 PEOPLE</span>
@@ -248,7 +294,7 @@ export default function LandingPage() {
               <span><i className="signal-bars"><b /><b /><b /></i> Audio active</span>
               <span>Move closer to connect</span>
             </div>
-          </div>
+          </motion.div>
 
           <div className="hero-scroll">
             <span>SCROLL TO EXPLORE</span>
@@ -450,10 +496,10 @@ export default function LandingPage() {
               Build a place where people can drop in, find each other, and talk
               without scheduling another meeting.
             </p>
-            <a className="primary-cta primary-cta--large" href="/app">
+            <MagneticCTA className="primary-cta primary-cta--large" href="/app">
               Enter ProxySpeak
               <span>→</span>
-            </a>
+            </MagneticCTA>
           </Reveal>
         </section>
       </main>
