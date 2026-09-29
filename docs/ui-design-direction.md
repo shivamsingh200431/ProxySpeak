@@ -190,3 +190,12 @@ The current experience should:
 Motion should be restrained and purposeful. Use Lenis for smooth scrolling, Motion for in-view reveals and micro-interactions, and normal document flow for section transitions. Long sticky viewport locks should not be introduced unless a concrete product interaction requires one.
 
 The Proximity Lab is a visual simulation only until the actual proximity and WebRTC milestones are implemented.
+
+
+## 10. Active workspace reference implementation
+
+The supplied ProxySpeak workspace reference image is the visual target for the active world experience. It should guide composition, density, glassmorphism, avatar presentation, world architecture, floating labels, proximity visualization, and control placement.
+
+The reference is not a requirement to render static people or inactive controls. Product behavior takes precedence: before entering a world, show Join a World; after entering, render only the current user and actual server-sourced members; expose controls only when their underlying behavior exists.
+
+The interface should use translucent dark glass surfaces with adjustable transparency, visible world content beneath panels, restrained blur, compact borders, warm spatial lighting, and a soft-focus local avatar. The world itself should remain the primary visual surface rather than being hidden behind opaque UI.
