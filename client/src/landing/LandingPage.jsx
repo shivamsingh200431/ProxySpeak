@@ -78,8 +78,9 @@ function CinematicTransition({ eyebrow, word, title, copy, accent = "red" }) {
 
     const update = () => {
       const rect = node.getBoundingClientRect();
-      const rawProgress = Math.min(1, Math.max(0, -rect.top / rect.height));
-      const progress = Math.min(1, Math.max(0, (rawProgress - 0.04) / 0.58));
+      const viewportHeight = window.innerHeight;
+      const scrollDistance = Math.max(1, rect.height - viewportHeight);
+      const progress = Math.min(1, Math.max(0, -rect.top / scrollDistance));
 
       node.style.setProperty("--cinematic-progress", progress.toFixed(4));
       frame = 0;
