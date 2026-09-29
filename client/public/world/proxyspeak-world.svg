@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520">
+<defs>
+  <linearGradient id="floor" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#202522"/><stop offset="1" stop-color="#111514"/></linearGradient>
+  <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#ffffff" stroke-opacity=".035"/></pattern>
+  <filter id="shadow"><feGaussianBlur stdDeviation="7"/></filter>
+</defs>
+<rect width="900" height="520" fill="#090b0b"/>
+<rect x="18" y="18" width="864" height="484" rx="26" fill="#050606" stroke="#2f3836" stroke-width="3"/>
+<rect x="32" y="32" width="836" height="456" rx="20" fill="url(#floor)"/>
+<rect x="32" y="32" width="836" height="456" rx="20" fill="url(#grid)"/>
+<!-- rooms -->
+<g fill="#1b211f" stroke="#58635e" stroke-width="3">
+ <rect x="58" y="58" width="230" height="150" rx="16"/>
+ <rect x="330" y="58" width="240" height="150" rx="16"/>
+ <rect x="612" y="58" width="230" height="150" rx="16"/>
+ <rect x="58" y="288" width="230" height="170" rx="16"/>
+ <rect x="330" y="288" width="240" height="170" rx="16"/>
+ <rect x="612" y="288" width="230" height="170" rx="16"/>
+</g>
+<!-- corridors / door openings -->
+<path d="M288 116H330M570 116H612M288 355H330M570 355H612M170 208V288M450 208V288M727 208V288" stroke="#101514" stroke-width="24"/>
+<path d="M288 116H330M570 116H612M288 355H330M570 355H612M170 208V288M450 208V288M727 208V288" stroke="#8a9892" stroke-opacity=".28" stroke-width="3"/>
+<!-- room labels -->
+<g fill="#9eaaa5" font-family="Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="2">
+ <text x="78" y="84">LOUNGE</text><text x="350" y="84">FOCUS</text><text x="632" y="84">MEETING</text>
+ <text x="78" y="314">SOCIAL</text><text x="350" y="314">WORK</text><text x="632" y="314">QUIET</text>
+</g>
+<!-- furniture shadows -->
+<g fill="#000" opacity=".35" filter="url(#shadow)">
+ <rect x="92" y="120" width="150" height="42" rx="12"/><rect x="380" y="125" width="140" height="55" rx="10"/>
+ <rect x="665" y="122" width="120" height="52" rx="10"/><rect x="92" y="355" width="145" height="48" rx="10"/>
+ <rect x="386" y="350" width="128" height="55" rx="10"/><rect x="668" y="352" width="120" height="52" rx="10"/>
+</g>
+<!-- sofas -->
+<g fill="#303b37" stroke="#71807a" stroke-width="2">
+ <rect x="88" y="114" width="158" height="42" rx="12"/><rect x="88" y="114" width="158" height="11" rx="6" fill="#40504a"/>
+ <rect x="88" y="348" width="150" height="46" rx="12"/><rect x="88" y="348" width="150" height="11" rx="6" fill="#40504a"/>
+ <rect x="662" y="346" width="130" height="44" rx="12"/><rect x="662" y="346" width="130" height="11" rx="6" fill="#40504a"/>
+</g>
+<!-- tables -->
+<g fill="#27302d" stroke="#7a8882" stroke-width="2">
+ <rect x="378" y="116" width="144" height="56" rx="10"/><rect x="660" y="114" width="130" height="58" rx="10"/>
+ <rect x="382" y="340" width="136" height="62" rx="10"/>
+</g>
+<g fill="#aab6b0" opacity=".45">
+ <circle cx="400" cy="144" r="4"/><circle cx="500" cy="144" r="4"/><circle cx="685" cy="143" r="4"/><circle cx="760" cy="143" r="4"/>
+ <circle cx="405" cy="370" r="4"/><circle cx="495" cy="370" r="4"/>
+</g>
+<!-- plants -->
+<g fill="#4d8b69" stroke="#8ac49e" stroke-width="1.5">
+ <circle cx="272" cy="74" r="9"/><circle cx="272" cy="94" r="8"/><circle cx="598" cy="74" r="9"/>
+ <circle cx="272" cy="470" r="9"/><circle cx="598" cy="470" r="9"/><circle cx="830" cy="470" r="9"/>
+</g>
+<!-- meeting board -->
+<rect x="396" y="92" width="112" height="14" rx="4" fill="#9baaa4"/><path d="M410 99h84" stroke="#26312d" stroke-width="2"/>
+<!-- spawn marker -->
+<circle cx="450" cy="260" r="30" fill="#ff302f" fill-opacity=".07" stroke="#ff302f" stroke-opacity=".35" stroke-dasharray="5 7"/>
+<text x="450" y="265" text-anchor="middle" fill="#ff7b79" font-family="Arial,sans-serif" font-size="8" font-weight="700" letter-spacing="1.5">START</text>
+</svg>
