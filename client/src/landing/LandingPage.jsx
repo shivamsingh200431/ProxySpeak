@@ -246,7 +246,7 @@ export default function LandingPage() {
             initial={{ opacity: 0, y: 50, rotateX: 8, rotateY: -8, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, rotateX: 2, rotateY: -4, scale: 1 }}
             transition={{ duration: 1.2, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          > aria-label="Animated proximity workspace preview">
+          >
             <div className="hero-visual__topline">
               <span>LIVE SPACE / EXECUTIVE LOUNGE</span>
               <span><i className="mini-dot" /> 8 PEOPLE</span>
