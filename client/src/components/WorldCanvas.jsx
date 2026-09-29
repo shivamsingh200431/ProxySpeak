@@ -1,18 +1,29 @@
 import { useEffect, useRef } from "react";
 import { WORLD_WIDTH, WORLD_HEIGHT, AUDIO_RADIUS } from "../constants/world";
 import { getWorldViewport } from "../utils/worldViewport";
+import { getCameraTarget, getInitialCamera } from "../utils/camera";
 
 const WORLD_ART = "/world/proxyspeak-world.svg";
+const CAMERA_LERP = 0.14;
 
 export default function WorldCanvas({
   position,
   playerName = "You",
   remotePlayers = [],
-  showProximityZone = true,
-  activePanel = null
+  showProximityZone = true
 }) {
   const canvasRef = useRef(null);
   const artRef = useRef(null);
+  const cameraRef = useRef(null);
+  const playerRef = useRef(position);
+  const playersRef = useRef(remotePlayers);
+  const nameRef = useRef(playerName);
+  const proximityRef = useRef(showProximityZone);
+
+  useEffect(() => { playerRef.current = position; }, [position]);
+  useEffect(() => { playersRef.current = remotePlayers; }, [remotePlayers]);
+  useEffect(() => { nameRef.current = playerName; }, [playerName]);
+  useEffect(() => { proximityRef.current = showProximityZone; }, [showProximityZone]);
 
   useEffect(() => {
     const image = new Image();
@@ -27,11 +38,32 @@ export default function WorldCanvas({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    let frame = 0;
+
     const render = () => {
       const cssWidth = Math.max(320, canvas.clientWidth);
       const cssHeight = Math.max(240, canvas.clientHeight);
       const dpr = window.devicePixelRatio || 1;
-      const viewport = getWorldViewport({ width: cssWidth, height: cssHeight, panel: activePanel });
+
+      if (!cameraRef.current) {
+        cameraRef.current = getInitialCamera({
+          player: playerRef.current,
+          viewportWidth: cssWidth,
+          viewportHeight: cssHeight
+        });
+      }
+
+      const target = getCameraTarget({
+        player: playerRef.current,
+        camera: cameraRef.current,
+        viewportWidth: cssWidth,
+        viewportHeight: cssHeight
+      });
+
+      cameraRef.current = {
+        x: cameraRef.current.x + (target.x - cameraRef.current.x) * CAMERA_LERP,
+        y: cameraRef.current.y + (target.y - cameraRef.current.y) * CAMERA_LERP
+      };
 
       canvas.width = Math.round(cssWidth * dpr);
       canvas.height = Math.round(cssHeight * dpr);
@@ -40,26 +72,43 @@ export default function WorldCanvas({
       ctx.fillStyle = "#070909";
       ctx.fillRect(0, 0, cssWidth, cssHeight);
 
+      const viewport = getWorldViewport({
+        width: cssWidth,
+        height: cssHeight,
+        camera: cameraRef.current
+      });
+
       ctx.save();
       ctx.translate(viewport.offsetX, viewport.offsetY);
-      ctx.scale(viewport.scale, viewport.scale);
-      drawWorld(ctx, artRef.current, position, playerName, remotePlayers, showProximityZone, viewport);
+      drawWorld(
+        ctx,
+        artRef.current,
+        playerRef.current,
+        nameRef.current,
+        playersRef.current,
+        proximityRef.current,
+        viewport
+      );
       ctx.restore();
+
+      frame = requestAnimationFrame(render);
     };
 
     const art = artRef.current;
     art?.addEventListener("load", render);
-    const observer = new ResizeObserver(render);
+    const observer = new ResizeObserver(() => {
+      cameraRef.current = null;
+    });
     observer.observe(canvas);
+
     render();
-    window.addEventListener("resize", render);
 
     return () => {
       art?.removeEventListener("load", render);
       observer.disconnect();
-      window.removeEventListener("resize", render);
+      cancelAnimationFrame(frame);
     };
-  }, [position, playerName, remotePlayers, showProximityZone, activePanel]);
+  }, []);
 
   return <div className="canvas-container"><canvas ref={canvasRef} className="world-canvas" /></div>;
 }
