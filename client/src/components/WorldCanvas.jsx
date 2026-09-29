@@ -13,6 +13,7 @@ export default function WorldCanvas({
   showProximityZone = true
 }) {
   const canvasRef = useRef(null);
+  const containerRef = useRef(null);
   const artRef = useRef(null);
   const cameraRef = useRef(null);
   const playerRef = useRef(position);
@@ -53,7 +54,8 @@ export default function WorldCanvas({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -65,8 +67,9 @@ export default function WorldCanvas({
     let lastFrameTime = performance.now();
 
     const resizeCanvas = () => {
-      const width = Math.max(320, canvas.clientWidth);
-      const height = Math.max(240, canvas.clientHeight);
+      const rect = container.getBoundingClientRect();
+      const width = Math.max(320, Math.floor(rect.width));
+      const height = Math.max(240, Math.floor(rect.height));
       const dpr = window.devicePixelRatio || 1;
 
       if (width !== lastWidth || height !== lastHeight || dpr !== lastDpr) {
@@ -158,7 +161,7 @@ export default function WorldCanvas({
       needsRenderRef.current = true;
       if (!frame) frame = requestAnimationFrame(render);
     });
-    observer.observe(canvas);
+    observer.observe(container);
 
     const wake = () => {
       needsRenderRef.current = true;
@@ -184,7 +187,7 @@ export default function WorldCanvas({
     return () => cancelAnimationFrame(frame);
   }, [position]);
 
-  return <div className="canvas-container"><canvas ref={canvasRef} className="world-canvas" /></div>;
+  return <div ref={containerRef} className="canvas-container"><canvas ref={canvasRef} className="world-canvas" /></div>;
 }
 
 function drawWorld(ctx, art, position, playerName, remotePlayers, showProximityZone, viewport) {
