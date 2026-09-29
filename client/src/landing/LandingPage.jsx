@@ -37,6 +37,65 @@ function Reveal({ children, className = "" }) {
   );
 }
 
+
+function CinematicTransition({ eyebrow, word, title, copy, accent = "red" }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+
+    let frame = 0;
+
+    const update = () => {
+      const rect = node.getBoundingClientRect();
+      const viewport = window.innerHeight;
+      const travel = viewport + rect.height;
+      const progress = Math.min(1, Math.max(0, (viewport - rect.top) / travel));
+
+      node.style.setProperty("--cinematic-progress", progress.toFixed(4));
+      frame = 0;
+    };
+
+    const handleScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+
+    update();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
+
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, []);
+
+  return (
+    <section
+      ref={ref}
+      className={`cinematic-transition cinematic-transition--${accent}`}
+      aria-label={title}
+    >
+      <div className="cinematic-sticky">
+        <div className="cinematic-grid" aria-hidden="true" />
+        <div className="cinematic-word" aria-hidden="true">{word}</div>
+        <div className="cinematic-scan" aria-hidden="true" />
+        <div className="cinematic-copy">
+          <span className="section-kicker">{eyebrow}</span>
+          <h2>{title}</h2>
+          <p>{copy}</p>
+        </div>
+        <div className="cinematic-meter" aria-hidden="true">
+          <span>SCROLL PROGRESS</span>
+          <i />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Person({ person, index }) {
   return (
     <div
@@ -199,6 +258,13 @@ export default function LandingPage() {
           </div>
         </section>
 
+        <CinematicTransition
+          eyebrow="01 / THE PHYSICAL LAYER"
+          word="DISTANCE"
+          title={<>Distance <em>is the interface.</em></>}
+          copy="ProxySpeak turns an invisible measurement into something you can feel: move closer and the relationship becomes stronger."
+        />
+
         <section className="statement-section" id="how-it-works">
           <Reveal className="section-inner">
             <div className="section-kicker">01 / THE IDEA</div>
@@ -272,6 +338,14 @@ export default function LandingPage() {
             </div>
           </Reveal>
         </section>
+
+        <CinematicTransition
+          eyebrow="02 / THE SOCIAL LAYER"
+          word="SPACE"
+          title={<>A room you can <em>move through.</em></>}
+          copy="The page shifts from product idea to product experience — typography pulls back, and the workspace comes forward."
+          accent="yellow"
+        />
 
         <section className="experience-section" id="experience">
           <Reveal className="experience-heading">
