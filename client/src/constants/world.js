@@ -18,8 +18,9 @@ export const PLAYER_RADIUS = 14;
 export const AUDIO_RADIUS = 160;
 export const BOUNDARY_PADDING = 60;
 
-// Movement speed in world units per second
-export const MOVE_SPEED = 4.2;
+// Movement speed in world units per second.
+// 252u/s preserves the previous ~4.2px/frame feel at 60Hz while remaining frame-rate independent.
+export const MOVE_SPEED = 252;
 
 export const THEME = {
   bg: "#121211",
