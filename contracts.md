@@ -150,47 +150,62 @@ Position synchronization, remote-player state, and authoritative movement valida
 
 ## 8. Socket.io Event Contract
 
-Finalized for the connection/join/leave layer (Milestone 2, Week 1). Movement and full presence-list events will be appended here in Week 2 once the player registry (shared world state) lands.
+The connection/join layer now supports explicit world creation, invite-code joining, shared player presence, movement broadcasts, and cleanup.
 
 ### Client → Server
 
 | Event | Payload | Notes |
 | --- | --- | --- |
-| `join-world` | `{ name: string }` | 1–20 chars after trim, required. Rejected if the connection already joined. |
+| `create-world` | `{ name: string }` | Creates a new private world using the validated display name and places the creator in it. |
+| `join-world` | `{ name: string, inviteCode: string }` | Joins an existing world using its 6-character invite code. Name is validated as 1–20 trimmed characters. |
+| `player-moved` | `{ x: number, y: number }` | Movement update from a joined client. The server validates numeric coordinates and clamps them to world bounds. |
 | `leave-world` | *(none)* | Explicit, intentional leave. Distinct from a network disconnect. |
 
 ### Server → Client
 
 | Event | Payload | Sent to |
 | --- | --- | --- |
-| `world-joined` | `{ playerId: string, name: string }` | Sender only — successful join acknowledgement. `playerId` is a server-generated 6-character public player identifier. The internal Socket.io ID is never exposed through this contract. |
-| `player-joined` | `{ playerId: string, name: string }` | Everyone except sender. |
-| `player-left` | `{ playerId: string }` | Everyone, for explicit leave and disconnect cleanup. |
-| `join-error` | `{ code: string, message: string }` | Sender only. Codes: `INVALID_PAYLOAD`, `INVALID_NAME`, `ALREADY_JOINED`. |
+| `world-created` | `{ worldId: string, inviteCode: string, name: string }` | Creator only |
+| `world-joined` | `{ worldId: string, inviteCode: string, worldName: string, owner: boolean, playerId: string, name: string, x: number, y: number, players: Player[] }` | Joining client only |
+| `player-joined` | `Player` | Other members of the same world |
+| `player-moved` | `{ playerId: string, x: number, y: number }` | Other members of the same world |
+| `player-left` | `{ playerId: string }` | Other members of the same world |
+| `join-error` | `{ code: string, message: string }` | Requesting client |
+| `world-error` | `{ code: string, message: string }` | Requesting client |
+
+### Player payload
+
+A public player payload is:
+
+```json
+{
+  "playerId": "ABC234",
+  "name": "Shivam",
+  "x": 900,
+  "y": 700
+}
+```
+
+`socket.id` remains server-only. Public player IDs use six uppercase letters/digits while excluding visually ambiguous characters such as `I`, `O`, `0`, and `1`.
+
+### World behavior
+
+- Each created world receives a unique 6-character `worldId` and `inviteCode`.
+- The creator is the initial owner and is spawned at `(900,700)`.
+- Joining by invite code adds the client to that world and sends the current player snapshot.
+- Movement broadcasts are scoped to the player's current Socket.io world room.
+- Player positions are clamped server-side to the 1800 × 1100 world with 60u boundary padding.
+- Explicit leave and disconnect both remove the player from the world and notify the remaining members.
+- Empty worlds are removed from the in-memory registry.
 
 ### Built-in Socket.io lifecycle
 
 - `connection` — fires when the client establishes a Socket.io connection.
 - `disconnect` — fires when the client loses or closes the connection.
 
-### Client connection behavior
-
-- The client does not connect automatically on page load.
-- The user enters a display name and selects **Join World**.
-- The client trims the name and rejects empty names or names longer than 20 characters before opening the socket connection.
-- After `connect`, the client emits `join-world` with the display name.
-- A successful `world-joined` response stores the server-generated 6-character `playerId` as the local display ID. The internal Socket.io connection ID remains server-only.
-- Player IDs use uppercase letters and digits, excluding visually ambiguous characters such as `I`, `O`, `0`, and `1`.
-- Week 1 uses one implicit shared world; a separate `worldId` is intentionally not defined yet.
-- A future multi-world model will introduce an explicit world identifier as part of the authoritative world registry.
-- `join-error` is shown to the user and the socket is disconnected.
-- **Leave World** emits `leave-world` before closing the socket.
-- The client uses `VITE_SERVER_URL` when configured and defaults to `http://localhost:5000`.
-
 ### Scope boundary
 
-Week 1 establishes connection and join/leave behavior. Position synchronization, remote-player state, and the authoritative player registry are Week 2 work.
-
+The current world registry is in-memory. MongoDB/persistence is intentionally deferred. WebRTC signaling and peer audio remain future milestones.
 ## 9. Server Authority
 
 The server is authoritative for shared world state.
