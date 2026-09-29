@@ -14,7 +14,7 @@ function Icon({ name, size = 20 }) {
     link:<><path d="M10 13a5 5 0 0 0 7.07.07l2-2A5 5 0 0 0 12 4l-1 1"/><path d="M14 11a5 5 0 0 0-7.07-.07l-2 2A5 5 0 0 0 12 20l1-1"/></>,
     copy:<><rect x="9" y="9" width="10" height="10" rx="2"/><path d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/></>,
     mic:<><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></>,
-    micOff:<><path d="M9 9V6a3 3 0 0 1 5.7-1.3"/><path d="M15 10v1a3 3 0 0 1-5.3 1.9"/><path d="M5 11a7 7 0 0 0 10.9 5.8M12 18v3M8 21h8"/><path d="m3 3 18 18"/></>
+    micOff:<><path d="M9 9V6a3 3 0 0 1 5.7-1.3"/><path d="M15 10v1a3 3 0 0 1-5.3 1.9"/><path d="M5 11a7 7 0 0 0 10.9 5.8M12 18v3M8 21h8"/><path d="m3 3 18 18"/></>,
     search:<><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>
   };
   return <svg {...common}>{paths[name]}</svg>;
