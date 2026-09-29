@@ -4,10 +4,10 @@ import { validateJoinWorldPayload } from "./validators.js";
 const PLAYER_ID_LENGTH = 6;
 const WORLD_CODE_LENGTH = 6;
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const SPAWN_POSITION = { x: 450, y: 260 };
-const WORLD_WIDTH = 900;
-const WORLD_HEIGHT = 520;
-const BOUNDARY_PADDING = 24;
+const SPAWN_POSITION = { x: 900, y: 700 };
+const WORLD_WIDTH = 1800;
+const WORLD_HEIGHT = 1100;
+const BOUNDARY_PADDING = 60;
 
 export const connectedPlayers = new Map();
 export const worlds = new Map();
