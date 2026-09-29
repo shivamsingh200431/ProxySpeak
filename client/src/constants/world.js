@@ -12,7 +12,10 @@ export const SPAWN_POSITION = {
 };
 
 export const PLAYER_RADIUS = 14;
-export const AUDIO_RADIUS = 90; // Sourced from contracts.md (90 units proximity radius)
+
+// Planned proximity threshold documented in contracts.md.
+// This is currently used for visual feedback only.
+export const AUDIO_RADIUS = 90;
 export const BOUNDARY_PADDING = 24;
 
 // Movement speed in pixels per frame when using continuous key tracking loop
