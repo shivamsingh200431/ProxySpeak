@@ -4,6 +4,7 @@ import WorldCanvas from "./components/WorldCanvas";
 import ControlsOverlay from "./components/ControlsOverlay";
 import WorldHUD from "./components/WorldHUD";
 import { socket, SERVER_URL } from "./socket/index";
+import AudioMockUI from "./components/AudioMockUI";
 
 /**
  * ProxySpeak Frontend Application Shell
@@ -206,6 +207,8 @@ export default function App() {
       <p className="server-info">
         Connected server: <span>{SERVER_URL}</span>
       </p>
+
+      <AudioMockUI />
 
       <footer className="instructions-card">
         <h3>Proximity Interaction Guide</h3>
