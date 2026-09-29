@@ -1,18 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import {
-  WORLD_WIDTH,
-  WORLD_HEIGHT,
-  BOUNDARY_PADDING,
-  MOVE_SPEED,
-  SPAWN_POSITION
-} from "../constants/world";
+import { MOVE_SPEED, SPAWN_POSITION } from "../constants/world";
+import { getWorldViewport } from "../utils/worldViewport";
 
 /**
  * Custom hook to handle continuous, frame-smooth keyboard movement.
  * Tracks active keys (WASD + Arrow keys) and updates player position with
  * strict world boundary enforcement and diagonal normalization.
  */
-export function useMovement(initialPosition = SPAWN_POSITION) {
+export function useMovement(initialPosition = SPAWN_POSITION, activePanel = null) {
   const [position, setPosition] = useState(initialPosition);
   const [heading, setHeading] = useState(0); // in radians
   const [activeKeys, setActiveKeys] = useState({});
@@ -103,10 +98,11 @@ export function useMovement(initialPosition = SPAWN_POSITION) {
         const moveDistance = MOVE_SPEED * delta;
         const currentPos = positionRef.current;
 
-        const minX = BOUNDARY_PADDING;
-        const maxX = WORLD_WIDTH - BOUNDARY_PADDING;
-        const minY = BOUNDARY_PADDING;
-        const maxY = WORLD_HEIGHT - BOUNDARY_PADDING;
+        const viewport = getWorldViewport({ panel: activePanel });
+        const minX = viewport.minX;
+        const maxX = viewport.maxX;
+        const minY = viewport.minY;
+        const maxY = viewport.maxY;
 
         const nextX = Math.max(minX, Math.min(maxX, currentPos.x + dx * moveDistance));
         const nextY = Math.max(minY, Math.min(maxY, currentPos.y + dy * moveDistance));
@@ -128,7 +124,7 @@ export function useMovement(initialPosition = SPAWN_POSITION) {
         cancelAnimationFrame(animFrameRef.current);
       }
     };
-  }, []);
+  }, [activePanel]);
 
   return {
     position,
