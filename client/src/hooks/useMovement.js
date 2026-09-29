@@ -109,7 +109,7 @@ export function useMovement(initialPosition = SPAWN_POSITION) {
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  });
+  }, []);
 
   return { position, heading, activeKeys, resetPosition };
 }
