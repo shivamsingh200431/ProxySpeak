@@ -1122,3 +1122,50 @@ linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90de
     transition:none;
   }
 }
+
+
+/* ============================================================
+   Workspace camera viewport: reserve the left workspace panel.
+   The camera receives the actual canvas dimensions, so its deadzone
+   and world-edge clamps automatically use only the space to the right.
+   ============================================================ */
+.workspace-app--joined{
+  --workspace-sidebar-width:290px;
+  --workspace-world-left:310px;
+}
+
+.workspace-app--joined .workspace-world{
+  inset:0 0 0 var(--workspace-world-left);
+  width:auto;
+}
+
+.workspace-app--joined .workspace-world .canvas-container{
+  inset:0;
+  width:100%;
+  height:100%;
+}
+
+@media(max-width:1200px){
+  .workspace-app--joined{
+    --workspace-sidebar-width:220px;
+    --workspace-world-left:240px;
+  }
+}
+
+@media(max-width:760px){
+  .workspace-app--joined{
+    --workspace-sidebar-width:210px;
+    --workspace-world-left:220px;
+  }
+
+  .workspace-app--joined .workspace-world{
+    inset:0 0 0 var(--workspace-world-left);
+  }
+}
+
+@media(max-width:560px){
+  .workspace-app--joined{
+    --workspace-sidebar-width:64px;
+    --workspace-world-left:74px;
+  }
+}
