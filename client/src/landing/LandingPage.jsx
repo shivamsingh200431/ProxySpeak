@@ -212,7 +212,7 @@ export default function LandingPage() {
               start talking. Walk away, the conversation fades naturally.
             </p>
 
-            <div className="hero-actions">
+            <motion.div className="hero-actions" variants={{ hidden: { opacity: 0, y: 18 }, visible: { opacity: 1, y: 0 } }}>
               <MagneticCTA className="primary-cta" href="/app">
                 Enter ProxySpeak
                 <span>→</span>
