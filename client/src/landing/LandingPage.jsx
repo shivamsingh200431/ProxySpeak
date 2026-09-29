@@ -80,7 +80,12 @@ function CinematicTransition({ eyebrow, word, title, copy, accent = "red" }) {
       const rect = node.getBoundingClientRect();
       const viewportHeight = window.innerHeight;
       const scrollDistance = Math.max(1, rect.height - viewportHeight);
-      const progress = Math.min(1, Math.max(0, -rect.top / scrollDistance));
+
+      // Finish the cinematic reveal before the sticky section releases.
+      // The remaining scroll distance holds the completed frame on screen,
+      // so the page cannot move into the next section while the reveal is incomplete.
+      const revealDistance = scrollDistance * 0.7;
+      const progress = Math.min(1, Math.max(0, -rect.top / revealDistance));
 
       node.style.setProperty("--cinematic-progress", progress.toFixed(4));
       frame = 0;
