@@ -228,3 +228,19 @@ Panels should feel like transparent layers over the world rather than opaque car
 ### Reference libraries
 
 Inspira UI provides Vue/Nuxt-first copyable components, so useful visual patterns are adapted into the React/Vite codebase rather than introducing Vue dependencies. Animate UI follows a copy-first React component model powered by Motion, so its effect patterns are suitable for local adaptation. The official docs describe its Effect primitive around blur, slide, fade, zoom, and in-view behavior. Lenis remains reserved for landing-page smooth scrolling rather than the spatial world itself.
+
+
+## 12. Open-world workspace composition — 2026-09-30
+
+The latest workspace implementation replaces the contained world card with a full-viewport world surface.
+
+- The Canvas fills the workspace.
+- The scene is framed around the usable area between interface regions.
+- The persistent left navigation and any open right-side contextual panel define invisible avatar-safe lanes.
+- The world may visually continue behind interface glass, but avatars are prevented from entering the local UI lanes.
+- When no right-side panel is open, the playable world can expand toward the right edge.
+- The large in-world product headline is removed; “Your space. Your people.” now sits beside the ProxySpeak logo in the top navigation.
+- The Map panel shows the local red marker plus live green markers for all real remote members.
+- The bottom action island remains content-driven and stays compact around the available controls.
+
+This is a workspace presentation/movement rule, not an authoritative multiplayer collision contract.
