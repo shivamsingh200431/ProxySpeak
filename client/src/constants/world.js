@@ -22,24 +22,24 @@ export const BOUNDARY_PADDING = 24;
 export const MOVE_SPEED = 3.5;
 
 export const THEME = {
-  bg: "#0b0f19",
-  gridMajor: "#1f293d",
-  gridMinor: "#141c2e",
-  boundaryWall: "#3b82f6",
-  boundaryFill: "rgba(59, 130, 246, 0.04)",
+  bg: "#121211",
+  gridMajor: "#30302b",
+  gridMinor: "#1d1d1a",
+  boundaryWall: "#ff302f",
+  boundaryFill: "rgba(255, 48, 47, 0.035)",
   player: {
-    core: "#60a5fa",
-    glow: "rgba(96, 165, 250, 0.4)",
-    ring: "#93c5fd",
+    core: "#ff302f",
+    glow: "rgba(255, 48, 47, 0.28)",
+    ring: "#ff7775",
     heading: "#ffffff",
-    labelBg: "rgba(15, 23, 42, 0.85)",
-    labelText: "#f8fafc",
-    labelBorder: "rgba(96, 165, 250, 0.35)"
+    labelBg: "rgba(12, 12, 11, 0.82)",
+    labelText: "#f7f7f4",
+    labelBorder: "rgba(255, 48, 47, 0.35)"
   },
   proximity: {
-    fill: "rgba(59, 130, 246, 0.12)",
-    stroke: "rgba(96, 165, 250, 0.6)",
-    strokeDashed: "rgba(147, 197, 253, 0.35)"
+    fill: "rgba(255, 48, 47, 0.08)",
+    stroke: "rgba(255, 48, 47, 0.55)",
+    strokeDashed: "rgba(255, 200, 61, 0.32)"
   },
   remotePlayer: {
     core: "#34d399",
