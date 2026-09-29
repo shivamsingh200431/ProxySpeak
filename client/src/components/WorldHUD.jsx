@@ -6,8 +6,8 @@ import {
 } from "../constants/world";
 
 /**
- * WorldHUD component displaying live telemetry, boundary proximity status,
- * audio radius metrics, and presence state.
+ * WorldHUD component displaying local telemetry, boundary status,
+ * planned proximity range, and local presence state.
  */
 export default function WorldHUD({ position, remotePlayersCount = 0 }) {
   const isNearBoundary =
@@ -31,7 +31,7 @@ export default function WorldHUD({ position, remotePlayersCount = 0 }) {
       <div className="stat-card">
         <span className="stat-label">Proximity Range</span>
         <strong className="stat-value">{AUDIO_RADIUS} units</strong>
-        <span className="stat-meta">Spatially active voice zone</span>
+        <span className="stat-meta">Planned proximity threshold</span>
       </div>
 
       <div className="stat-card">
@@ -52,7 +52,7 @@ export default function WorldHUD({ position, remotePlayersCount = 0 }) {
         <span className="stat-meta">
           {remotePlayersCount > 0
             ? `${remotePlayersCount} remote peers`
-            : "Ready for multiplayer integration"}
+            : "Remote presence in Week 2"}
         </span>
       </div>
     </section>
