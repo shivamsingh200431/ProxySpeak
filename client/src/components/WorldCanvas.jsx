@@ -4,7 +4,7 @@ import { getWorldViewport } from "../utils/worldViewport";
 import { getCameraTarget, getInitialCamera } from "../utils/camera";
 
 const WORLD_ART = "/world/proxyspeak-world.svg";
-const CAMERA_SMOOTHING = 0.16;
+const CAMERA_FOLLOW_RATE = 10;
 
 export default function WorldCanvas({
   position,
@@ -62,6 +62,7 @@ export default function WorldCanvas({
     let lastWidth = 0;
     let lastHeight = 0;
     let lastDpr = 0;
+    let lastFrameTime = performance.now();
 
     const resizeCanvas = () => {
       const width = Math.max(320, canvas.clientWidth);
@@ -80,7 +81,9 @@ export default function WorldCanvas({
       return { width, height, dpr };
     };
 
-    const render = () => {
+    const render = (now = performance.now()) => {
+      const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
+      lastFrameTime = now;
       const { width, height, dpr } = resizeCanvas();
 
       if (!cameraRef.current) {
@@ -102,9 +105,11 @@ export default function WorldCanvas({
       const dy = target.y - cameraRef.current.y;
 
       if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
+        // Exponential smoothing keeps camera follow consistent at 60/120/144Hz.
+        const follow = 1 - Math.exp(-CAMERA_FOLLOW_RATE * dt);
         cameraRef.current = {
-          x: cameraRef.current.x + dx * CAMERA_SMOOTHING,
-          y: cameraRef.current.y + dy * CAMERA_SMOOTHING
+          x: cameraRef.current.x + dx * follow,
+          y: cameraRef.current.y + dy * follow
         };
       }
 
@@ -120,7 +125,9 @@ export default function WorldCanvas({
       });
 
       ctx.save();
-      ctx.translate(viewport.offsetX, viewport.offsetY);
+      // Keep the camera smooth internally, but present the final screen-space
+      // translation on whole pixels to avoid sub-pixel shimmer.
+      ctx.translate(Math.round(viewport.offsetX), Math.round(viewport.offsetY));
       drawWorld(
         ctx,
         artRef.current,
