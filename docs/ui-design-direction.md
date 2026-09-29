@@ -1,0 +1,173 @@
+# ProxySpeak UI and Experience Direction
+
+This document records the agreed visual and interaction direction for the ProxySpeak product.
+
+## 1. Product identity
+
+ProxySpeak is a proximity-based voice collaboration environment. It should feel like:
+
+> **Corporate collaboration + virtual world + subtle game mechanics**
+
+The interface should be professional enough for meetings and work while making presence, proximity, movement, and social interaction feel tangible.
+
+The product should be **gamified, not presented as a conventional video game**.
+
+Avoid a generic AI-dashboard aesthetic, excessive neon effects, or decorative animation that does not communicate product behavior.
+
+## 2. Product experiences
+
+ProxySpeak is intentionally split into two experiences.
+
+### Landing page
+
+The landing page is the public product introduction.
+
+Its purpose is to explain the core idea quickly:
+
+1. Move closer to someone.
+2. Enter their proximity range.
+3. Hear/talk to nearby people.
+4. Walk away and the audio relationship fades.
+
+The landing page should be highly polished and interactive, but should remain focused on explaining the product.
+
+Planned structure:
+
+- Hero
+- How ProxySpeak works
+- Proximity voice demonstration
+- Virtual office/product showcase
+- Feature overview
+- Final call to action
+- Entry into the application
+
+### Application
+
+The application is the actual shared virtual environment.
+
+Its visual direction is a professional virtual office with game-like interaction cues:
+
+- People rather than generic 'players'
+- Office/meeting/lounging spaces
+- Proximity indicators
+- Speaking indicators
+- Presence states
+- Room occupancy
+- Movement controls
+- Map/navigation
+- Subtle badges or achievements where they add value
+
+Development/debug labels such as 'Mock', 'Simulate Permission', or 'Visual Only' may be used during implementation, but they are not intended to remain in the finished product UI.
+
+## 3. Visual language
+
+The visual system should be built around a dark corporate foundation with strong red branding and restrained supporting colors.
+
+### Core palette
+
+| Role | Direction |
+| --- | --- |
+| Background | Near-black |
+| Surface | Very dark charcoal |
+| Primary text | Warm white |
+| Secondary text | Cool/light gray |
+| Brand/action | Vibrant red |
+| Attention/proximity | Warm yellow |
+| Connected/active | Green |
+| Secondary accent | Orange |
+
+Red is the primary brand and action color.
+
+Yellow is primarily for proximity, attention, and interaction states.
+
+Green communicates connected/active states.
+
+Black and white provide the corporate foundation.
+
+Purple is not a primary ProxySpeak brand color. Existing purple components should be recolored or restyled when they are incorporated into ProxySpeak.
+
+## 4. Typography
+
+The current design direction uses **Atkinson Hyperlegible** for both headings and body text.
+
+The existing type scale is based on a 16px root size:
+
+- sm: 0.750rem
+- base: 1rem
+- xl: 1.333rem
+- 2xl: 1.777rem
+- 3xl: 2.369rem
+- 4xl: 3.158rem
+- 5xl: 4.210rem
+
+Weights:
+
+- Normal: 400
+- Bold: 700
+
+Typography should remain readable and functional rather than decorative.
+
+## 5. Animation and interaction principles
+
+Animation should communicate hierarchy, state, navigation, and physical/social presence.
+
+Avoid combining multiple animation systems simply for visual spectacle.
+
+Preferred responsibilities:
+
+- **Lenis** — smooth scrolling on the landing page.
+- **Animate UI / Motion** — React UI transitions, interactive controls, component animations, and micro-interactions.
+- **Canvas** — the actual virtual-world rendering.
+- Additional animation tooling should only be introduced when a concrete interaction requires it.
+
+Inspira UI is a source of design and interaction inspiration, but it is a Vue/Nuxt project and is not a direct dependency of the React/Vite ProxySpeak client.
+
+The goal is a polished interface without 'AI slop': no unnecessary particles, glowing blobs, excessive gradients, cursor trails, or animation layers that compete with the product.
+
+## 6. Component/library strategy
+
+### Lenis
+
+Use for the public landing page's scrolling experience.
+
+### Animate UI
+
+Use selectively for React components and motion patterns that fit the ProxySpeak design system.
+
+Components should be adapted to ProxySpeak's visual language rather than copied with their original styling.
+
+### Inspira UI
+
+Use as a reference for interaction and visual ideas when useful.
+
+Do not add the Vue/Nuxt library directly to the React/Vite client.
+
+### Custom ProxySpeak components
+
+The virtual-world UI remains custom and should be designed around the product's actual behavior.
+
+This includes:
+
+- World canvas
+- People/presence indicators
+- Proximity visualization
+- Voice state controls
+- World HUD
+- Map/navigation
+- Meeting/room interfaces
+
+## 7. Responsive and accessibility direction
+
+The landing page must work across desktop and mobile layouts.
+
+The application should prioritize desktop interaction for the virtual world, while still providing sensible responsive behavior for supporting UI.
+
+Interactive states must remain understandable without relying only on color or animation.
+
+## 8. Scope boundary
+
+This document defines the visual and UX direction. It does not change the real-time networking, movement, proximity, or WebRTC contracts.
+
+Product behavior remains governed by contracts.md.
+
+Future UI changes that introduce a new shared interaction or materially change product behavior should update contracts.md as well.
