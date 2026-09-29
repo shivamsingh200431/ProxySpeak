@@ -1,311 +1,317 @@
 import { useEffect, useRef } from "react";
-import {
-  WORLD_WIDTH,
-  WORLD_HEIGHT,
-  PLAYER_RADIUS,
-  AUDIO_RADIUS,
-  BOUNDARY_PADDING,
-  THEME
-} from "../constants/world";
+import { WORLD_WIDTH, WORLD_HEIGHT, AUDIO_RADIUS } from "../constants/world";
+import { getWorldViewport } from "../utils/worldViewport";
+import { getCameraTarget, getInitialCamera } from "../utils/camera";
 
-/**
- * HTML5 Canvas renderer for ProxySpeak virtual world.
- * Supports High-DPI displays, coordinate grid, visual boundary fences,
- * player avatar rendering, proximity audio radius circles, and remote player rendering.
- */
+const WORLD_ART = "/world/proxyspeak-world.svg";
+const CAMERA_FOLLOW_RATE = 10;
+
 export default function WorldCanvas({
   position,
-  heading = 0,
   playerName = "You",
   remotePlayers = [],
   showProximityZone = true
 }) {
   const canvasRef = useRef(null);
+  const containerRef = useRef(null);
+  const artRef = useRef(null);
+  const cameraRef = useRef(null);
+  const playerRef = useRef(position);
+  const playersRef = useRef(remotePlayers);
+  const nameRef = useRef(playerName);
+  const proximityRef = useRef(showProximityZone);
+  const renderRef = useRef(null);
+  const needsRenderRef = useRef(true);
+
+  useEffect(() => {
+    playerRef.current = position;
+    needsRenderRef.current = true;
+  }, [position]);
+
+  useEffect(() => {
+    playersRef.current = remotePlayers;
+    needsRenderRef.current = true;
+  }, [remotePlayers]);
+
+  useEffect(() => {
+    nameRef.current = playerName;
+    needsRenderRef.current = true;
+  }, [playerName]);
+
+  useEffect(() => {
+    proximityRef.current = showProximityZone;
+    needsRenderRef.current = true;
+  }, [showProximityZone]);
+
+  useEffect(() => {
+    const image = new Image();
+    image.decoding = "async";
+    image.src = WORLD_ART;
+    artRef.current = image;
+    image.onload = () => { needsRenderRef.current = true; };
+    return () => { image.onload = null; };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Handle High-DPI screens for crystal clear lines
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = WORLD_WIDTH * dpr;
-    canvas.height = WORLD_HEIGHT * dpr;
+    let frame = 0;
+    let lastWidth = 0;
+    let lastHeight = 0;
+    let lastDpr = 0;
+    let lastFrameTime = performance.now();
 
-    ctx.save();
-    ctx.scale(dpr, dpr);
+    const resizeCanvas = () => {
+      const rect = container.getBoundingClientRect();
+      const width = Math.max(320, Math.floor(rect.width));
+      const height = Math.max(240, Math.floor(rect.height));
+      const dpr = window.devicePixelRatio || 1;
 
-    // 1. Draw World Background
-    ctx.fillStyle = THEME.bg;
-    ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+      if (width !== lastWidth || height !== lastHeight || dpr !== lastDpr) {
+        lastWidth = width;
+        lastHeight = height;
+        lastDpr = dpr;
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        cameraRef.current = null;
+        needsRenderRef.current = true;
+      }
+      return { width, height, dpr };
+    };
 
-    // Subtle background radial gradient
-    const bgGradient = ctx.createRadialGradient(
-      WORLD_WIDTH / 2,
-      WORLD_HEIGHT / 2,
-      50,
-      WORLD_WIDTH / 2,
-      WORLD_HEIGHT / 2,
-      WORLD_WIDTH / 1.5
-    );
-    bgGradient.addColorStop(0, "#0f172a");
-    bgGradient.addColorStop(1, "#070b14");
-    ctx.fillStyle = bgGradient;
-    ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    const render = (now = performance.now()) => {
+      const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
+      lastFrameTime = now;
+      const { width, height, dpr } = resizeCanvas();
 
-    // 2. Draw Minor & Major Coordinate Grid
-    // Minor grid
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = THEME.gridMinor;
-    for (let x = 0; x <= WORLD_WIDTH; x += 25) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, WORLD_HEIGHT);
-      ctx.stroke();
-    }
-    for (let y = 0; y <= WORLD_HEIGHT; y += 25) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(WORLD_WIDTH, y);
-      ctx.stroke();
-    }
-
-    // Major grid
-    ctx.strokeStyle = THEME.gridMajor;
-    for (let x = 0; x <= WORLD_WIDTH; x += 100) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, WORLD_HEIGHT);
-      ctx.stroke();
-    }
-    for (let y = 0; y <= WORLD_HEIGHT; y += 100) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(WORLD_WIDTH, y);
-      ctx.stroke();
-    }
-
-    // 3. Draw World Boundaries (Visual Wall & Perimeter Accent)
-    const minX = BOUNDARY_PADDING;
-    const maxX = WORLD_WIDTH - BOUNDARY_PADDING;
-    const minY = BOUNDARY_PADDING;
-    const maxY = WORLD_HEIGHT - BOUNDARY_PADDING;
-    const boundWidth = maxX - minX;
-    const boundHeight = maxY - minY;
-
-    // Out-of-bounds danger border
-    ctx.fillStyle = THEME.boundaryFill;
-    ctx.fillRect(minX, minY, boundWidth, boundHeight);
-
-    ctx.strokeStyle = THEME.boundaryWall;
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([8, 6]);
-    ctx.strokeRect(minX, minY, boundWidth, boundHeight);
-    ctx.setLineDash([]); // reset dash
-
-    // Draw Corner Brackets to give a tactical world border
-    const bracketLen = 14;
-    ctx.strokeStyle = "#60a5fa";
-    ctx.lineWidth = 2;
-
-    // Top-Left
-    ctx.beginPath();
-    ctx.moveTo(minX, minY + bracketLen);
-    ctx.lineTo(minX, minY);
-    ctx.lineTo(minX + bracketLen, minY);
-    ctx.stroke();
-
-    // Top-Right
-    ctx.beginPath();
-    ctx.moveTo(maxX - bracketLen, minY);
-    ctx.lineTo(maxX, minY);
-    ctx.lineTo(maxX, minY + bracketLen);
-    ctx.stroke();
-
-    // Bottom-Left
-    ctx.beginPath();
-    ctx.moveTo(minX, maxY - bracketLen);
-    ctx.lineTo(minX, maxY);
-    ctx.lineTo(minX + bracketLen, maxY);
-    ctx.stroke();
-
-    // Bottom-Right
-    ctx.beginPath();
-    ctx.moveTo(maxX - bracketLen, maxY);
-    ctx.lineTo(maxX, maxY);
-    ctx.lineTo(maxX, maxY - bracketLen);
-    ctx.stroke();
-
-    // 4. Draw Audio Proximity Radius (Visual Proximity Awareness)
-    if (showProximityZone) {
-      // Outer translucent fill
-      ctx.beginPath();
-      ctx.arc(position.x, position.y, AUDIO_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle = THEME.proximity.fill;
-      ctx.fill();
-
-      // Outer boundary stroke
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = THEME.proximity.stroke;
-      ctx.stroke();
-
-      // Subtle dashed inner ring
-      ctx.beginPath();
-      ctx.arc(position.x, position.y, AUDIO_RADIUS, 0, Math.PI * 2);
-      ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = THEME.proximity.strokeDashed;
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Proximity range label at bottom edge of radius
-      ctx.fillStyle = "rgba(147, 197, 253, 0.75)";
-      ctx.font = "10px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "top";
-      ctx.fillText(`Voice Range (${AUDIO_RADIUS}u)`, position.x, position.y + AUDIO_RADIUS + 6);
-    }
-
-    // 5. Draw Remote Players (Contract-Ready)
-    remotePlayers.forEach((player) => {
-      const dx = player.x - position.x;
-      const dy = player.y - position.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const isNearby = dist <= AUDIO_RADIUS;
-
-      // Draw proximity connection beam if in audio range
-      if (isNearby) {
-        ctx.beginPath();
-        ctx.moveTo(position.x, position.y);
-        ctx.lineTo(player.x, player.y);
-        ctx.strokeStyle = "rgba(52, 211, 153, 0.35)";
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
-        ctx.stroke();
-        ctx.setLineDash([]);
+      if (!cameraRef.current) {
+        cameraRef.current = getInitialCamera({
+          player: playerRef.current,
+          viewportWidth: width,
+          viewportHeight: height
+        });
       }
 
-      // Remote player aura
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, PLAYER_RADIUS * 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = THEME.remotePlayer.glow;
-      ctx.fill();
+      const target = getCameraTarget({
+        player: playerRef.current,
+        camera: cameraRef.current,
+        viewportWidth: width,
+        viewportHeight: height
+      });
 
-      // Remote player core
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, PLAYER_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle = THEME.remotePlayer.core;
-      ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = THEME.remotePlayer.ring;
-      ctx.stroke();
+      const dx = target.x - cameraRef.current.x;
+      const dy = target.y - cameraRef.current.y;
 
-      // Remote player name label
-      renderPlayerLabel(
+      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
+        // Exponential smoothing keeps camera follow consistent at 60/120/144Hz.
+        const follow = 1 - Math.exp(-CAMERA_FOLLOW_RATE * dt);
+        cameraRef.current = {
+          x: cameraRef.current.x + dx * follow,
+          y: cameraRef.current.y + dy * follow
+        };
+      }
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#070909";
+      ctx.fillRect(0, 0, width, height);
+
+      const viewport = getWorldViewport({
+        width,
+        height,
+        camera: cameraRef.current
+      });
+
+      ctx.save();
+      // Keep the camera smooth internally, but present the final screen-space
+      // translation on whole pixels to avoid sub-pixel shimmer.
+      ctx.translate(Math.round(viewport.offsetX), Math.round(viewport.offsetY));
+      drawWorld(
         ctx,
-        player.x,
-        player.y,
-        player.name || "Remote Player",
-        THEME.remotePlayer.labelBg,
-        THEME.remotePlayer.labelText,
-        THEME.remotePlayer.labelBorder,
-        isNearby ? `${Math.round(dist)}u (Nearby)` : `${Math.round(dist)}u`
+        artRef.current,
+        playerRef.current,
+        nameRef.current,
+        playersRef.current,
+        proximityRef.current,
+        viewport
       );
+      ctx.restore();
+
+      const cameraSettled = Math.abs(target.x - cameraRef.current.x) < 0.2 &&
+        Math.abs(target.y - cameraRef.current.y) < 0.2;
+
+      if (needsRenderRef.current || !cameraSettled) {
+        needsRenderRef.current = false;
+        frame = requestAnimationFrame(render);
+      } else {
+        frame = 0;
+      }
+      renderRef.current = render;
+    };
+
+    renderRef.current = render;
+    render();
+
+    const observer = new ResizeObserver(() => {
+      needsRenderRef.current = true;
+      if (!frame) frame = requestAnimationFrame(render);
     });
+    observer.observe(container);
 
-    // 6. Draw Local Player Avatar
-    // Player outer glow
-    ctx.beginPath();
-    ctx.arc(position.x, position.y, PLAYER_RADIUS * 1.8, 0, Math.PI * 2);
-    ctx.fillStyle = THEME.player.glow;
-    ctx.fill();
+    const wake = () => {
+      needsRenderRef.current = true;
+      if (!frame) frame = requestAnimationFrame(render);
+    };
+    window.addEventListener("resize", wake);
 
-    // Player core body
-    ctx.beginPath();
-    ctx.arc(position.x, position.y, PLAYER_RADIUS, 0, Math.PI * 2);
-    ctx.fillStyle = THEME.player.core;
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = THEME.player.ring;
-    ctx.stroke();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", wake);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
 
-    // Direction notch / heading pointer
-    const headingLength = PLAYER_RADIUS + 5;
-    const tipX = position.x + Math.cos(heading) * headingLength;
-    const tipY = position.y + Math.sin(heading) * headingLength;
-    ctx.beginPath();
-    ctx.arc(tipX, tipY, 3, 0, Math.PI * 2);
-    ctx.fillStyle = THEME.player.heading;
-    ctx.fill();
+  useEffect(() => {
+    if (!renderRef.current) return;
+    needsRenderRef.current = true;
+    // The movement hook publishes positions through React state. Wake the
+    // renderer for that frame; camera smoothing continues until settled.
+    const frame = requestAnimationFrame(() => {
+      if (renderRef.current) renderRef.current();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [position]);
 
-    // 7. Draw Local Player Label
-    renderPlayerLabel(
-      ctx,
-      position.x,
-      position.y,
-      playerName || "You",
-      THEME.player.labelBg,
-      THEME.player.labelText,
-      THEME.player.labelBorder,
-      `X: ${Math.round(position.x)} Y: ${Math.round(position.y)}`
-    );
-
-    ctx.restore();
-  }, [position, heading, playerName, remotePlayers, showProximityZone]);
-
-  return (
-    <div className="canvas-container">
-      <canvas
-        ref={canvasRef}
-        className="world-canvas"
-        style={{
-          width: "100%",
-          aspectRatio: `${WORLD_WIDTH} / ${WORLD_HEIGHT}`
-        }}
-      />
-    </div>
-  );
+  return <div ref={containerRef} className="canvas-container"><canvas ref={canvasRef} className="world-canvas" /></div>;
 }
 
-/**
- * Helper to render polished, centered player label pills with coordinates or distance
- */
-function renderPlayerLabel(ctx, x, y, name, bg, textCol, borderCol, subtext) {
-  ctx.font = "bold 12px sans-serif";
-  const nameWidth = ctx.measureText(name).width;
-  ctx.font = "10px sans-serif";
-  const subWidth = subtext ? ctx.measureText(subtext).width : 0;
+function drawWorld(ctx, art, position, playerName, remotePlayers, showProximityZone, viewport) {
+  const localDrawPosition = {
+    x: Math.round(position.x),
+    y: Math.round(position.y)
+  };
 
-  const pillWidth = Math.max(nameWidth, subWidth) + 16;
-  const pillHeight = subtext ? 28 : 20;
-  const pillX = x - pillWidth / 2;
-  const pillY = y - PLAYER_RADIUS - pillHeight - 8;
-
-  // Background rounded rectangle
-  ctx.fillStyle = bg;
-  ctx.beginPath();
-  if (ctx.roundRect) {
-    ctx.roundRect(pillX, pillY, pillWidth, pillHeight, 6);
+  if (art?.complete && art.naturalWidth > 0) {
+    ctx.drawImage(art, 0, 0, WORLD_WIDTH, WORLD_HEIGHT);
   } else {
-    ctx.rect(pillX, pillY, pillWidth, pillHeight);
+    ctx.fillStyle = "#121716";
+    ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
   }
+
+  if (showProximityZone) {
+    const gradient = ctx.createRadialGradient(localDrawPosition.x, localDrawPosition.y, 8, localDrawPosition.x, localDrawPosition.y, AUDIO_RADIUS);
+    gradient.addColorStop(0, "rgba(255,48,47,.18)");
+    gradient.addColorStop(.65, "rgba(255,48,47,.055)");
+    gradient.addColorStop(1, "rgba(255,48,47,0)");
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(localDrawPosition.x, localDrawPosition.y, AUDIO_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.setLineDash([7, 7]);
+    ctx.strokeStyle = "rgba(255,48,47,.52)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(localDrawPosition.x, localDrawPosition.y, AUDIO_RADIUS, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  remotePlayers.forEach(player => {
+    const drawPosition = {
+      x: Math.round(player.x),
+      y: Math.round(player.y)
+    };
+    const visible = player.x >= viewport.minX && player.x <= viewport.maxX &&
+      player.y >= viewport.minY && player.y <= viewport.maxY;
+    if (!visible) return;
+
+    const distance = Math.hypot(player.x - position.x, player.y - position.y);
+    const near = distance <= AUDIO_RADIUS;
+
+    if (near) {
+      ctx.setLineDash([4, 6]);
+      ctx.strokeStyle = "rgba(53,208,127,.28)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(position.x, position.y);
+      ctx.lineTo(player.x, player.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    drawStickman(ctx, drawPosition.x, drawPosition.y, player.name, false,
+      near ? Math.round(distance) + "u nearby" : Math.round(distance) + "u");
+  });
+
+  drawStickman(ctx, localDrawPosition.x, localDrawPosition.y, playerName, true, "YOU");
+}
+
+function drawStickman(ctx, x, y, name, local, sub) {
+  const accent = local ? "#ff302f" : "#35d07f";
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  ctx.shadowColor = local ? "rgba(255,48,47,.42)" : "rgba(53,208,127,.28)";
+  ctx.shadowBlur = 14;
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(x, y + 2, 21, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "rgba(8,9,8,.88)";
+  ctx.beginPath();
+  ctx.arc(x, y - 12, 7, 0, Math.PI * 2);
   ctx.fill();
 
-  // Border
-  ctx.strokeStyle = borderCol;
+  ctx.strokeStyle = "#f2f1eb";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 5);
+  ctx.lineTo(x, y + 13);
+  ctx.moveTo(x, y - 1);
+  ctx.lineTo(x - 9, y + 7);
+  ctx.moveTo(x, y - 1);
+  ctx.lineTo(x + 9, y + 7);
+  ctx.moveTo(x, y + 13);
+  ctx.lineTo(x - 7, y + 23);
+  ctx.moveTo(x, y + 13);
+  ctx.lineTo(x + 7, y + 23);
+  ctx.stroke();
+
+  drawLabel(ctx, x, y - 40, name, sub, local);
+  ctx.restore();
+}
+
+function drawLabel(ctx, x, y, name, sub, local) {
+  ctx.textAlign = "center";
+  ctx.font = "700 12px Arial, sans-serif";
+  const nameWidth = ctx.measureText(name).width;
+  ctx.font = "9px Arial, sans-serif";
+  const subWidth = ctx.measureText(sub).width;
+  const width = Math.max(nameWidth, subWidth) + 24;
+
+  ctx.fillStyle = "rgba(7,8,7,.9)";
+  ctx.beginPath();
+  ctx.roundRect(x - width / 2, y - 22, width, 35, 8);
+  ctx.fill();
+
+  ctx.strokeStyle = local ? "rgba(255,48,47,.58)" : "rgba(255,255,255,.15)";
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  // Name text
-  ctx.textAlign = "center";
-  ctx.fillStyle = textCol;
-  ctx.font = "bold 11px sans-serif";
-  ctx.fillText(name, x, pillY + (subtext ? 11 : 14));
-
-  // Subtext (coordinates or distance)
-  if (subtext) {
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "9px sans-serif";
-    ctx.fillText(subtext, x, pillY + 23);
-  }
+  ctx.fillStyle = "#f5f4ef";
+  ctx.font = "700 12px Arial, sans-serif";
+  ctx.fillText(name, x, y - 6);
+  ctx.fillStyle = local ? "#ff7775" : "#a3aaa5";
+  ctx.font = "9px Arial, sans-serif";
+  ctx.fillText(sub, x, y + 10);
 }

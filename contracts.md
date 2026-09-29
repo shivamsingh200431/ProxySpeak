@@ -150,47 +150,62 @@ Position synchronization, remote-player state, and authoritative movement valida
 
 ## 8. Socket.io Event Contract
 
-Finalized for the connection/join/leave layer (Milestone 2, Week 1). Movement and full presence-list events will be appended here in Week 2 once the player registry (shared world state) lands.
+The connection/join layer now supports explicit world creation, invite-code joining, shared player presence, movement broadcasts, and cleanup.
 
 ### Client → Server
 
 | Event | Payload | Notes |
 | --- | --- | --- |
-| `join-world` | `{ name: string }` | 1–20 chars after trim, required. Rejected if the connection already joined. |
+| `create-world` | `{ name: string }` | Creates a new private world using the validated display name and places the creator in it. |
+| `join-world` | `{ name: string, inviteCode: string }` | Joins an existing world using its 6-character invite code. Name is validated as 1–20 trimmed characters. |
+| `player-moved` | `{ x: number, y: number }` | Movement update from a joined client. The server validates numeric coordinates and clamps them to world bounds. |
 | `leave-world` | *(none)* | Explicit, intentional leave. Distinct from a network disconnect. |
 
 ### Server → Client
 
 | Event | Payload | Sent to |
 | --- | --- | --- |
-| `world-joined` | `{ playerId: string, name: string }` | Sender only — successful join acknowledgement. `playerId` is a server-generated 6-character public player identifier. The internal Socket.io ID is never exposed through this contract. |
-| `player-joined` | `{ playerId: string, name: string }` | Everyone except sender. |
-| `player-left` | `{ playerId: string }` | Everyone, for explicit leave and disconnect cleanup. |
-| `join-error` | `{ code: string, message: string }` | Sender only. Codes: `INVALID_PAYLOAD`, `INVALID_NAME`, `ALREADY_JOINED`. |
+| `world-created` | `{ worldId: string, inviteCode: string, name: string }` | Creator only |
+| `world-joined` | `{ worldId: string, inviteCode: string, worldName: string, owner: boolean, playerId: string, name: string, x: number, y: number, players: Player[] }` | Joining client only |
+| `player-joined` | `Player` | Other members of the same world |
+| `player-moved` | `{ playerId: string, x: number, y: number }` | Other members of the same world |
+| `player-left` | `{ playerId: string }` | Other members of the same world |
+| `join-error` | `{ code: string, message: string }` | Requesting client |
+| `world-error` | `{ code: string, message: string }` | Requesting client |
+
+### Player payload
+
+A public player payload is:
+
+```json
+{
+  "playerId": "ABC234",
+  "name": "Shivam",
+  "x": 900,
+  "y": 700
+}
+```
+
+`socket.id` remains server-only. Public player IDs use six uppercase letters/digits while excluding visually ambiguous characters such as `I`, `O`, `0`, and `1`.
+
+### World behavior
+
+- Each created world receives a unique 6-character `worldId` and `inviteCode`.
+- The creator is the initial owner and is spawned at `(900,700)`.
+- Joining by invite code adds the client to that world and sends the current player snapshot.
+- Movement broadcasts are scoped to the player's current Socket.io world room.
+- Player positions are clamped server-side to the 1800 × 1100 world with 60u boundary padding.
+- Explicit leave and disconnect both remove the player from the world and notify the remaining members.
+- Empty worlds are removed from the in-memory registry.
 
 ### Built-in Socket.io lifecycle
 
 - `connection` — fires when the client establishes a Socket.io connection.
 - `disconnect` — fires when the client loses or closes the connection.
 
-### Client connection behavior
-
-- The client does not connect automatically on page load.
-- The user enters a display name and selects **Join World**.
-- The client trims the name and rejects empty names or names longer than 20 characters before opening the socket connection.
-- After `connect`, the client emits `join-world` with the display name.
-- A successful `world-joined` response stores the server-generated 6-character `playerId` as the local display ID. The internal Socket.io connection ID remains server-only.
-- Player IDs use uppercase letters and digits, excluding visually ambiguous characters such as `I`, `O`, `0`, and `1`.
-- Week 1 uses one implicit shared world; a separate `worldId` is intentionally not defined yet.
-- A future multi-world model will introduce an explicit world identifier as part of the authoritative world registry.
-- `join-error` is shown to the user and the socket is disconnected.
-- **Leave World** emits `leave-world` before closing the socket.
-- The client uses `VITE_SERVER_URL` when configured and defaults to `http://localhost:5000`.
-
 ### Scope boundary
 
-Week 1 establishes connection and join/leave behavior. Position synchronization, remote-player state, and the authoritative player registry are Week 2 work.
-
+The current world registry is in-memory. MongoDB/persistence is intentionally deferred. WebRTC signaling and peer audio remain future milestones.
 ## 9. Server Authority
 
 The server is authoritative for shared world state.
@@ -407,7 +422,6 @@ Animation should communicate hierarchy, state, navigation, and social/physical p
 Preferred responsibilities:
 
 - **Lenis** — smooth scrolling for the landing page, including anchor navigation and tuned wheel/touch behavior.
-- **Scroll-linked cinematic transitions** — custom landing-page sections may map scroll progress to typography scale, opacity, blur, grid movement, and transition layers. These effects are presentation-only and must not alter product state.
 - **Motion / Animate UI patterns** — Motion-powered React entrance effects, spring interactions, hover/tap feedback, and reusable reveal patterns inspired by Animate UI. Animate UI is a copy-first component distribution, so only selected patterns should be adapted rather than adding a large UI dependency surface.
 - **Canvas** — actual virtual-world rendering.
 - Additional animation systems should only be introduced when a concrete interaction requires them.
@@ -476,3 +490,55 @@ The Proximity Lab is explicitly a presentation-only simulation until the real pr
 The landing page continues to use the dark corporate foundation, red brand/action color, yellow proximity/attention color, green active state, and Atkinson Hyperlegible typography defined in Section 13.
 
 The landing page should prefer restrained grids, frames, product diagrams, and purposeful transitions over particles, glowing blobs, excessive gradients, cursor trails, or oversized cinematic effects.
+
+## 15. Workspace Map and Movement — 2026-09-30
+
+The workspace prototype now uses a large connected map with server-authoritative world bounds and client-side collision/presentation.
+
+### World geometry
+
+- World coordinate space is **1800 × 1100**.
+- The prototype contains nine connected rooms: Lounge, Focus, Meeting, Social, Commons, Quiet, Work, Lab, and Archive.
+- Horizontal and vertical corridors provide traversable routes between rooms.
+- The central Commons area is the default spawn/social anchor.
+- The SVG artwork and collision layer use the same 1800 × 1100 coordinate system.
+- Furniture remains solid without sealing the primary routes.
+
+### Runtime movement
+
+- Server-authoritative world bounds use 60u boundary padding.
+- Client and server spawn at `(900,700)`.
+- Movement speed is **252 world units/second**, using elapsed time rather than a frame-count multiplier.
+- The visual proximity radius is **160u** in the workspace prototype.
+- Collision is currently client-side presentation/movement logic; the server remains authoritative for shared player positions and world bounds.
+- The SVG is a prototype map representation and may later be replaced by a Tiled-authored map while preserving the movement/network contracts.
+
+## 16. Workspace Camera and Viewport — 2026-09-30
+
+The workspace world is rendered inside a dedicated contained viewport.
+
+- The joined world container sits to the right of the persistent sidebar.
+- It sits below the top navigation and above the bottom workspace controls.
+- The container uses rounded clipping and `overflow: hidden`.
+- The Canvas fills the container rather than the browser window.
+- Camera viewport dimensions come from the container's `getBoundingClientRect()` and are tracked with `ResizeObserver`.
+- The player-follow camera uses an approximately 30%–70% deadzone and smooth exponential follow.
+- Camera X/Y are clamped to the world edges relative to the actual container viewport dimensions.
+- Final camera/avatar rendering coordinates are rounded to whole screen pixels to reduce shimmer.
+- Opening Settings, People, Map, or Invite does not recenter or resize the camera.
+- UI panels are presentation layers; avatar movement remains constrained by world/collision rules rather than by panel geometry.
+
+This is a client presentation/movement contract and does not change server-authoritative Socket.io payloads.
+
+## 17. Workspace UI Behavior — 2026-09-30
+
+The workspace UI follows the supplied reference direction.
+
+- Before joining a world, the user sees **Join a World** and no fabricated remote people.
+- After joining, only the local user and server-sourced remote members are rendered.
+- Floating Settings, People, Map, and Invite panels close when the user clicks outside them.
+- Clicking the currently active panel trigger toggles that panel closed.
+- The bottom action dock is content-driven: controls appear only when their underlying behavior exists.
+- The microphone control requests local microphone permission and toggles local track state; it does **not** yet establish peer WebRTC audio.
+- The world and avatars use the current stickman visual language.
+- The workspace world remains visually calm and contained within its rounded viewport while glass UI overlays provide context.

@@ -190,3 +190,58 @@ The current experience should:
 Motion should be restrained and purposeful. Use Lenis for smooth scrolling, Motion for in-view reveals and micro-interactions, and normal document flow for section transitions. Long sticky viewport locks should not be introduced unless a concrete product interaction requires one.
 
 The Proximity Lab is a visual simulation only until the actual proximity and WebRTC milestones are implemented.
+
+
+## 10. Active workspace reference implementation
+
+The supplied ProxySpeak workspace reference image is the visual target for the active world experience. It should guide composition, density, glassmorphism, avatar presentation, world architecture, floating labels, proximity visualization, and control placement.
+
+The reference is not a requirement to render static people or inactive controls. Product behavior takes precedence: before entering a world, show Join a World; after entering, render only the current user and actual server-sourced members; expose controls only when their underlying behavior exists.
+
+The interface should use translucent dark glass surfaces with adjustable transparency, visible world content beneath panels, restrained blur, compact borders, warm spatial lighting, and a soft-focus local avatar. The world itself should remain the primary visual surface rather than being hidden behind opaque UI.
+
+
+## 11. Workspace refinement from supplied screenshots
+
+The latest supplied screenshots are the active visual reference for the workspace.
+
+### Spatial composition
+
+- Keep the world visually dominant but contained enough that the viewer can understand where the environment ends.
+- Avoid a full-viewport cropped world that makes the scene feel endless.
+- Use a subtle perimeter/vignette rather than a thick hard boundary.
+- Keep the world architecture calmer than the interface so the eye can identify the interactive layer.
+
+### People
+
+Stickman-style people are now the preferred avatar language. The figure should remain crisp at normal viewing size, with color rings and compact labels carrying state.
+
+### Glass interaction
+
+Panels should feel like transparent layers over the world rather than opaque cards pasted on top.
+
+- Close floating panels when the user clicks outside.
+- Clicking an active toolbar control toggles its panel closed.
+- Responsive panels must reduce width and height as the viewport shrinks.
+- Motion should be short, purposeful, and based on blur/fade/slide patterns.
+
+### Reference libraries
+
+Inspira UI provides Vue/Nuxt-first copyable components, so useful visual patterns are adapted into the React/Vite codebase rather than introducing Vue dependencies. Animate UI follows a copy-first React component model powered by Motion, so its effect patterns are suitable for local adaptation. The official docs describe its Effect primitive around blur, slide, fade, zoom, and in-view behavior. Lenis remains reserved for landing-page smooth scrolling rather than the spatial world itself.
+
+
+## 12. Contained workspace composition — 2026-09-30
+
+The latest workspace implementation keeps the world visually dominant while rendering it inside a dedicated contained viewport.
+
+- The Canvas occupies the rounded world viewport to the right of the persistent sidebar.
+- The viewport sits below the top navigation and above the bottom workspace controls.
+- Rounded clipping and `overflow: hidden` keep the world visually bounded without a thick hard border.
+- The camera uses the actual viewport container dimensions rather than the browser window.
+- The world remains a large 1800 × 1100 coordinate space and the camera follows the local avatar through it.
+- The persistent sidebar and contextual panels remain interface layers; they do not resize or recenter the camera when opened.
+- The large in-world product headline is removed; “Your space. Your people.” remains beside the ProxySpeak logo in the top navigation.
+- The Map panel shows the local red marker plus live green markers for real remote members.
+- The bottom action island remains content-driven and stays compact around controls that actually exist.
+
+This is a workspace presentation/movement rule, not an authoritative multiplayer collision contract.

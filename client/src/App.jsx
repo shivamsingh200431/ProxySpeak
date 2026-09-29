@@ -1,223 +1,81 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMovement } from "./hooks/useMovement";
 import WorldCanvas from "./components/WorldCanvas";
-import ControlsOverlay from "./components/ControlsOverlay";
-import WorldHUD from "./components/WorldHUD";
-import { socket, SERVER_URL } from "./socket/index";
-import AudioMockUI from "./components/AudioMockUI";
+import { socket } from "./socket/index";
+import { AUDIO_RADIUS, WORLD_HEIGHT, WORLD_WIDTH } from "./constants/world";
 
-/**
- * ProxySpeak Frontend Application Shell
- * Responsible for coordinating world state, player identity, controls, and HUD.
- * Socket.io integration follows the event contract defined in contracts.md.
- */
-export default function App() {
-  const [playerName, setPlayerName] = useState("");
-  const [showProximityZone, setShowProximityZone] = useState(true);
+function Icon({ name, size = 20 }) {
+  const common={width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:1.8,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":true};
+  const paths={
+    home:<><path d="m3 10 9-7 9 7"/><path d="M5 9v11h14V9"/><path d="M9 20v-6h6v6"/></>,
+    people:<><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M17 11a4 4 0 0 0 0-8"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></>,
+    map:<><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15"/><path d="M15 6v15"/></>,
+    settings:<><circle cx="12" cy="12" r="3.5"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.7 1.7-.06-.06a1.7 1.7 0 0 0-1.88-.34A1.7 1.7 0 0 0 15.13 19v1h-2.4v-1a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-1.7-1.7.06-.06A1.7 1.7 0 0 0 8.46 15a1.7 1.7 0 0 0-1.56-1.03H6v-2.4h.9A1.7 1.7 0 0 0 8.46 10a1.7 1.7 0 0 0-.34-1.88l-.06-.06 1.7-1.7.06.06a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 12.73 5V4h2.4v1a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 1.7 1.7-.06.06A1.7 1.7 0 0 0 19.46 10c.2.62.78 1.03 1.44 1.03H21v2.4h-.22A1.7 1.7 0 0 0 19.4 15Z"/></>,
+    link:<><path d="M10 13a5 5 0 0 0 7.07.07l2-2A5 5 0 0 0 12 4l-1 1"/><path d="M14 11a5 5 0 0 0-7.07-.07l-2 2A5 5 0 0 0 12 20l1-1"/></>,
+    copy:<><rect x="9" y="9" width="10" height="10" rx="2"/><path d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/></>,
+    mic:<><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></>,
+    micOff:<><path d="M9 9V6a3 3 0 0 1 5.7-1.3"/><path d="M15 10v1a3 3 0 0 1-5.3 1.9"/><path d="M5 11a7 7 0 0 0 10.9 5.8M12 18v3M8 21h8"/><path d="m3 3 18 18"/></>,
+    search:<><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>
+  };
+  return <svg {...common}>{paths[name]}</svg>;
+}
+function Brand(){return <div className="workspace-brand"><span className="workspace-brand__mark"><i/><i/><i/></span><span className="workspace-brand__name"><b>Proxy</b><strong>Speak</strong></span><span className="workspace-brand__tagline">Your space. <em>Your people.</em></span></div>}
+function GlassButton({children,className="",...props}){return <button className={`glass-button ${className}`} {...props}>{children}</button>}
+function Avatar({name="?",tone="green",you=false}){return <span className={`avatar avatar--${tone}${you?" avatar--you":""}`}>{name.slice(0,1).toUpperCase()}</span>}
 
-  const nameRef = useRef("");
-  const joinFailedRef = useRef(false);
+function JoinWorld({playerName,setPlayerName,inviteCode,setInviteCode,isConnecting,error,onCreate,onJoin}){return <div className="world-gate glass-surface"><div className="world-gate__brand"><span className="workspace-brand__mark"><i/><i/><i/></span><b>Proxy<span>Speak</span></b></div><span className="panel-kicker">PRIVATE SPATIAL WORKSPACE</span><h1>Join a world.<br/><em>Be closer.</em></h1><p>Enter an invite code to join someone’s world, or create your own room and invite people into it.</p><label>Your display name<input value={playerName} onChange={e=>setPlayerName(e.target.value)} maxLength={20} placeholder="e.g. Shivam"/></label><label>World invite code <span className="optional">optional when creating</span><input value={inviteCode} onChange={e=>setInviteCode(e.target.value.toUpperCase())} maxLength={6} placeholder="ABC123"/></label><div className="world-gate__actions"><button className="join-primary" onClick={onJoin} disabled={isConnecting}>{isConnecting?"Joining…":"Join world"} <span>→</span></button><button className="join-secondary" onClick={onCreate} disabled={isConnecting}>Create my world</button></div>{error&&<div className="join-error">{error}</div>}<small>Nothing is loaded as a shared room until you create or join one.</small></div>}
+function PeoplePanel({playerName,remotePlayers,onClose}){return <aside className="floating-panel people-panel" data-panel-surface><div className="panel-heading"><div><span className="panel-kicker">PEOPLE IN WORLD</span><h2>{remotePlayers.length+1}</h2></div><GlassButton onClick={onClose}>×</GlassButton></div><div className="people-list"><div className="person-row person-row--you"><Avatar name={playerName} tone="red" you/><div><b>{playerName} <em>YOU</em></b><small>Your position</small></div><span className="person-state person-state--yellow"/></div>{remotePlayers.map(p=><div className="person-row" key={p.playerId}><Avatar name={p.name}/><div><b>{p.name}</b><small>In your world</small></div><span className="person-state person-state--green"/></div>)}</div>{remotePlayers.length===0&&<div className="people-empty">There is no one here yet. Invite someone to your world.</div>}</aside>}
+function MiniMap({position,remotePlayers,onClose}){const x=Math.max(3,Math.min(97,(position.x/WORLD_WIDTH)*100));const y=Math.max(3,Math.min(97,(position.y/WORLD_HEIGHT)*100));return <aside className="floating-panel map-panel" data-panel-surface><div className="mini-map__top"><span>Floor 1 · Live</span><GlassButton onClick={onClose}>×</GlassButton></div><div className="mini-map"><div className="mini-map__rooms mini-map__rooms--a"/><div className="mini-map__rooms mini-map__rooms--b"/><div className="mini-map__rooms mini-map__rooms--c"/>{remotePlayers.map(player=><i key={player.playerId} className="mini-dot mini-dot--green" title={player.name} style={{left:`${Math.max(3,Math.min(97,(player.x/WORLD_WIDTH)*100))}%`,top:`${Math.max(3,Math.min(97,(player.y/WORLD_HEIGHT)*100))}%`}}/>)}<i className="mini-dot mini-dot--red" style={{left:`${x}%`,top:`${y}%`}}/></div><div className="mini-map__legend"><span><i className="legend-dot legend-dot--red"/> You</span><span><i className="legend-dot legend-dot--green"/> {remotePlayers.length} {remotePlayers.length===1?"person":"people"}</span></div></aside>}
+function SettingsPanel({transparency,setTransparency,onClose}){return <aside className="floating-panel settings-panel" data-panel-surface><div className="panel-heading"><div><span className="panel-kicker">WORKSPACE</span><h2>Appearance</h2></div><GlassButton onClick={onClose}>×</GlassButton></div><div className="setting-row"><div><b>Glass transparency</b><small>Change how much of the world shows through the interface.</small></div><strong>{Math.round(transparency*100)}%</strong></div><input className="transparency-slider" type="range" min=".35" max=".85" step=".01" value={transparency} onChange={e=>setTransparency(Number(e.target.value))}/><div className="setting-scale"><span>Transparent</span><span>Solid</span></div></aside>}
+function TopBar({worldName,connectedCount,onPeople,onMap,onSettings,onInvite}){return <header className="workspace-topbar glass-surface"><Brand/><div className="workspace-topbar__center"><button className="workspace-select glass-button" data-panel-trigger><span className="workspace-thumb">⌂</span><span><b>{worldName}</b><small>Shared world</small></span><span>⌄</span></button><div className="top-stat glass-button"><Icon name="people" size={19}/><b>{connectedCount} / 20</b></div><div className="connection-chip glass-button is-online"><span className="connection-light"/><b>Connected</b></div></div><div className="workspace-topbar__actions"><GlassButton className="panel-trigger" data-panel-trigger onClick={onPeople} aria-label="People"><Icon name="people"/></GlassButton><GlassButton className="panel-trigger" data-panel-trigger onClick={onMap} aria-label="Map"><Icon name="map"/></GlassButton><GlassButton className="panel-trigger" data-panel-trigger onClick={onInvite} aria-label="Invite"><Icon name="link"/></GlassButton><GlassButton className="panel-trigger" data-panel-trigger onClick={onSettings} aria-label="Settings"><Icon name="settings"/></GlassButton></div></header>}
+function BottomDock({actions,onAction,micEnabled,micSupported}){return <div className="bottom-dock glass-surface" style={{"--dock-count":actions.length}}>{actions.map(action=><GlassButton key={action.id} className={`dock-action ${action.id==="mic"&&!micEnabled?"is-muted":""}`} onClick={()=>onAction(action.id)}><Icon name={action.id==="mic"&&!micEnabled?"micOff":action.icon}/><small>{action.id==="mic"?(micEnabled?"Mute mic":"Enable mic"):action.label}</small></GlassButton>)}</div>}
+function InvitePanel({inviteCode,onClose}){const [copied,setCopied]=useState(false);async function copy(){try{await navigator.clipboard.writeText(inviteCode);setCopied(true);setTimeout(()=>setCopied(false),1400)}catch{}}return <aside className="floating-panel invite-panel" data-panel-surface><div className="panel-heading"><div><span className="panel-kicker">INVITE TO WORLD</span><h2>Bring someone in.</h2></div><GlassButton onClick={onClose}>×</GlassButton></div><p className="invite-copy">Share this code. They can enter it from the Join a World screen.</p><div className="invite-code">{inviteCode}</div><button className="join-secondary invite-copy-button" onClick={copy}><Icon name="copy" size={16}/>{copied?"Copied":"Copy invite code"}</button></aside>}
 
-  const [playerId, setPlayerId] = useState("");
-  const [status, setStatus] = useState("Not connected");
-  const [error, setError] = useState("");
-
-  // Prepared for Week 2 presence integration; currently local-only.
-  const [remotePlayers] = useState([]);
-
-  // Local visual movement prototype; coordinates are not synchronized yet.
-  const { position, heading, activeKeys, resetPosition } = useMovement();
-
-  useEffect(() => {
-    nameRef.current = playerName;
-  }, [playerName]);
-
-  useEffect(() => {
-    function handleConnect() {
-      setStatus("Connected");
-      setError("");
-      socket.emit("join-world", { name: nameRef.current.trim() });
-    }
-
-    function handleWorldJoined(player) {
-      setPlayerId(player.playerId);
-      setStatus(`Joined as ${player.name}`);
-      setError("");
-    }
-
-    function handleJoinError(payload) {
-      joinFailedRef.current = true;
-      setError(payload.message);
-      setStatus("Join failed");
-      setPlayerId("");
-      socket.disconnect();
-    }
-
-    function handleDisconnect() {
-      setPlayerId("");
-      if (!joinFailedRef.current) {
-        setStatus("Disconnected");
-      }
-    }
-
-    socket.on("connect", handleConnect);
-    socket.on("world-joined", handleWorldJoined);
-    socket.on("join-error", handleJoinError);
-    socket.on("disconnect", handleDisconnect);
-
-    return () => {
-      socket.off("connect", handleConnect);
-      socket.off("world-joined", handleWorldJoined);
-      socket.off("join-error", handleJoinError);
-      socket.off("disconnect", handleDisconnect);
-    };
-  }, []);
-
-  function handleNameChange(value) {
-    setPlayerName(value);
-    nameRef.current = value;
-    if (error) setError("");
+export default function App(){
+  const [playerName,setPlayerName]=useState("");const [inviteCode,setInviteCode]=useState("");const [worldName,setWorldName]=useState("");const [worldId,setWorldId]=useState("");const [worldInvite,setWorldInvite]=useState("");const [playerId,setPlayerId]=useState("");const [remotePlayers,setRemotePlayers]=useState([]);const [status,setStatus]=useState("Not connected");const [error,setError]=useState("");const [panel,setPanel]=useState(null);const [transparency,setTransparency]=useState(.68);const [micEnabled,setMicEnabled]=useState(false);const [micSupported,setMicSupported]=useState(false);
+  const nameRef=useRef("");const intentRef=useRef(null);const lastSentRef=useRef(0);const panelRef=useRef(null);const micStreamRef=useRef(null);
+  const {position,heading,activeKeys}=useMovement();
+  useEffect(()=>{nameRef.current=playerName},[playerName]);
+  useEffect(()=>{setMicSupported(Boolean(navigator.mediaDevices?.getUserMedia))},[]);
+  useEffect(()=>{
+    const closeOutside=e=>{if(!panel)return;if(e.target.closest?.("[data-panel-surface]")||e.target.closest?.("[data-panel-trigger]"))return;setPanel(null)};
+    document.addEventListener("pointerdown",closeOutside);
+    return()=>document.removeEventListener("pointerdown",closeOutside);
+  },[panel]);
+  useEffect(()=>{
+    const onConnect=()=>{setStatus("Connected");const intent=intentRef.current;if(intent?.type==="create")socket.emit("create-world",{name:nameRef.current.trim()});if(intent?.type==="join")socket.emit("join-world",{name:nameRef.current.trim(),inviteCode:intent.code})};
+    const onWorldCreated=payload=>{setWorldInvite(payload.inviteCode);setWorldName(payload.name)};
+    const onWorldJoined=payload=>{setWorldId(payload.worldId);setWorldInvite(payload.inviteCode);setWorldName(payload.worldName);setPlayerId(payload.playerId);setRemotePlayers((payload.players||[]).filter(p=>p.playerId!==payload.playerId));setStatus("Joined");setError("")};
+    const onPlayerJoined=player=>setRemotePlayers(prev=>prev.some(p=>p.playerId===player.playerId)?prev:[...prev,player]);
+    const onPlayerMoved=payload=>setRemotePlayers(prev=>prev.map(p=>p.playerId===payload.playerId?{...p,...payload}:p));
+    const onPlayerLeft=payload=>setRemotePlayers(prev=>prev.filter(p=>p.playerId!==payload.playerId));
+    const onError=payload=>{setError(payload.message);setStatus("Join failed");intentRef.current=null;if(socket.connected)socket.disconnect()};
+    const onDisconnect=()=>{if(worldId)setStatus("Disconnected")};
+    socket.on("connect",onConnect);socket.on("world-created",onWorldCreated);socket.on("world-joined",onWorldJoined);socket.on("player-joined",onPlayerJoined);socket.on("player-moved",onPlayerMoved);socket.on("player-left",onPlayerLeft);socket.on("join-error",onError);socket.on("world-error",onError);socket.on("disconnect",onDisconnect);
+    return()=>{socket.off("connect",onConnect);socket.off("world-created",onWorldCreated);socket.off("world-joined",onWorldJoined);socket.off("player-joined",onPlayerJoined);socket.off("player-moved",onPlayerMoved);socket.off("player-left",onPlayerLeft);socket.off("join-error",onError);socket.off("world-error",onError);socket.off("disconnect",onDisconnect)};
+  },[worldId]);
+  useEffect(()=>{if(!playerId||!socket.connected)return;const now=Date.now();if(now-lastSentRef.current<80)return;lastSentRef.current=now;socket.emit("player-moved",{x:position.x,y:position.y})},[position,playerId]);
+  useEffect(()=>()=>{micStreamRef.current?.getTracks().forEach(track=>track.stop())},[]);
+  async function toggleMic(){
+    if(!micSupported){setError("This browser does not support microphone access.");return}
+    if(!micStreamRef.current){try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});micStreamRef.current=stream;setMicEnabled(true);setError("")}catch{setError("Microphone permission was not granted.")}return}
+    const next=!micEnabled;micStreamRef.current.getAudioTracks().forEach(track=>{track.enabled=next});setMicEnabled(next);
   }
-
-  function handleConnectClick() {
-    const trimmedName = playerName.trim();
-
-    if (!trimmedName) {
-      setError("Enter a name before joining.");
-      return;
-    }
-
-    if (trimmedName.length > 20) {
-      setError("Name must be between 1 and 20 characters.");
-      return;
-    }
-
-    nameRef.current = trimmedName;
-    joinFailedRef.current = false;
-    setError("");
-    setStatus("Connecting...");
-    socket.connect();
-  }
-
-  function handleLeave() {
-    if (socket.connected) {
-      socket.emit("leave-world");
-      socket.disconnect();
-    }
-  }
-
-  const isJoined = Boolean(playerId);
-  const isConnecting = status === "Connecting..." || status === "Connected";
-
-  return (
-    <main className="app">
-      <header className="app-header">
-        <div>
-          <p className="eyebrow">PROXIMITY AUDIO ECOSYSTEM</p>
-          <h1 className="app-title">ProxySpeak</h1>
-          <p className="subtitle">
-            A shared digital space where distance influences communication.
-          </p>
-        </div>
-
-        <div className={`status-badge${isJoined ? " status-badge--online" : ""}`} role="status">
-          <span className="status-dot" />
-          <span>{status}</span>
-        </div>
-      </header>
-
-      <section className="card">
-        <div className="toolbar">
-          <div>
-            <h2>Virtual Workspace</h2>
-            <p>Move your avatar using W, A, S, D or the Arrow keys.</p>
-          </div>
-
-          <div className="join-panel">
-            <label htmlFor="display-name">Display name</label>
-            <div className="join-controls">
-              <input
-                id="display-name"
-                value={playerName}
-                onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="Enter your name"
-                name="displayName"
-                autoComplete="off"
-                maxLength={20}
-                disabled={isJoined || isConnecting}
-              />
-
-              {isJoined ? (
-                <button
-                  type="button"
-                  className="button button--secondary"
-                  onClick={handleLeave}
-                >
-                  Leave World
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="button"
-                  onClick={handleConnectClick}
-                  disabled={isConnecting}
-                >
-                  {isConnecting ? "Joining…" : "Join World"}
-                </button>
-              )}
-            </div>
-            <span className="input-hint">1–20 characters</span>
-          </div>
-        </div>
-
-        {error && <p className="error">{error}</p>}
-
-        <ControlsOverlay
-          activeKeys={activeKeys}
-          onResetPosition={resetPosition}
-          showProximityZone={showProximityZone}
-          onToggleProximityZone={() => setShowProximityZone((prev) => !prev)}
-        />
-
-        <WorldCanvas
-          position={position}
-          heading={heading}
-          playerName={playerName || "You"}
-          remotePlayers={remotePlayers}
-          showProximityZone={showProximityZone}
-        />
-      </section>
-
-      <WorldHUD position={position} remotePlayersCount={remotePlayers.length} />
-
-      <section className="stats-row">
-        <div className="stat-card">
-          <span className="stat-label">Player ID</span>
-          <strong className="stat-value mono">{playerId || "—"}</strong>
-          <span className="stat-meta">Server-assigned (6 chars)</span>
-        </div>
-
-        <div className="stat-card">
-          <span className="stat-label">World</span>
-          <strong className="stat-value">Single shared world</strong>
-          <span className="stat-meta">Multi-world in a future milestone</span>
-        </div>
-      </section>
-
-      <p className="server-info">
-        Connected server: <span>{SERVER_URL}</span>
-      </p>
-
-      <AudioMockUI />
-
-      <footer className="instructions-card">
-        <h3>Proximity Interaction Guide</h3>
-        <p>
-          The <strong>90-unit proximity range</strong> is currently a visual
-          prototype. Proximity filtering and voice connections will be added in
-          future milestones.
-        </p>
-      </footer>
-    </main>
-  );
+  function togglePanel(next){setPanel(current=>current===next?null:next)}
+  function begin(type){const name=playerName.trim();if(!name)return setError("Enter your display name.");if(name.length>20)return setError("Name must be between 1 and 20 characters.");if(type==="join"&&!inviteCode.trim())return setError("Enter the world invite code.");intentRef.current={type,code:inviteCode.trim().toUpperCase()};setError("");setStatus("Connecting…");if(socket.connected)socket.disconnect();socket.connect()}
+  function leaveWorld(){socket.emit("leave-world");socket.disconnect();setWorldId("");setPlayerId("");setRemotePlayers([]);setWorldName("");setWorldInvite("");setPanel(null);setMicEnabled(false);micStreamRef.current?.getTracks().forEach(track=>track.stop());micStreamRef.current=null;intentRef.current=null;setStatus("Not connected")}
+  const isJoined=Boolean(worldId&&playerId);const cssVars=useMemo(()=>({"--glass-alpha":transparency}),[transparency]);
+  const actions=[{id:"mic",icon:"mic",label:"Mute mic"},{id:"map",icon:"map",label:"Map"}];if(remotePlayers.length>0)actions.push({id:"people",icon:"people",label:"People"});
+  function handleDockAction(id){if(id==="mic")toggleMic();if(id==="map")togglePanel("map");if(id==="people")togglePanel("people")}
+  return <main className={`workspace-app${isJoined?" workspace-app--joined":""}`} style={cssVars}>
+    <div className="workspace-backdrop" aria-hidden="true"/><div className="workspace-world"><WorldCanvas position={position} heading={heading} playerName={playerName||"You"} remotePlayers={remotePlayers} showProximityZone={isJoined}/></div>
+    {isJoined?<><TopBar worldName={worldName} connectedCount={remotePlayers.length+1} onPeople={()=>togglePanel("people")} onMap={()=>togglePanel("map")} onInvite={()=>togglePanel("invite")} onSettings={()=>togglePanel("settings")}/>
+      <aside className="workspace-sidebar glass-surface"><div className="sidebar-nav"><button className="sidebar-nav__item is-active"><Icon name="home"/><span>Lounge</span></button><button className="sidebar-nav__item panel-trigger" data-panel-trigger onClick={()=>togglePanel("people")}><Icon name="people"/><span>People</span>{remotePlayers.length>0&&<b>{remotePlayers.length+1}</b>}</button><button className="sidebar-nav__item panel-trigger" data-panel-trigger onClick={()=>togglePanel("map")}><Icon name="map"/><span>Map</span></button><button className="sidebar-nav__item panel-trigger" data-panel-trigger onClick={()=>togglePanel("settings")}><Icon name="settings"/><span>Settings</span></button></div><div className="sidebar-room glass-inner"><div className="room-thumb">⌂</div><div><b>{worldName}</b><p>Your private spatial workspace.</p></div></div><button className="invite-button glass-button panel-trigger" data-panel-trigger onClick={()=>togglePanel("invite")}><Icon name="link" size={17}/> Invite People</button><div className="sidebar-people"><div className="sidebar-people__heading"><b>People in World ({remotePlayers.length+1})</b><Icon name="search" size={16}/></div><div className="sidebar-people__list"><div className="mini-person is-you"><Avatar name={playerName} tone="red" you/><span>{playerName} <em>YOU</em></span><i/></div>{remotePlayers.map(p=><div className="mini-person" key={p.playerId}><Avatar name={p.name}/><span>{p.name}</span><i/></div>)}</div>{remotePlayers.length===0&&<p className="sidebar-empty">There is no one here. Invite someone to your world.</p>}</div><button className="leave-world-button" onClick={leaveWorld}>Leave world</button></aside>
+      <div className="world-range-label glass-inner"><span>Voice Range</span><b>{AUDIO_RADIUS}u</b><small>Visual only</small></div>
+      <BottomDock actions={actions} onAction={handleDockAction} micEnabled={micEnabled} micSupported={micSupported}/>
+      <div className="workspace-footer glass-inner"><span>Player <b>{playerId}</b></span><span>{Math.round(position.x)} × {Math.round(position.y)}</span><span>World {worldInvite}</span></div>
+      {panel==="people"&&<PeoplePanel playerName={playerName} remotePlayers={remotePlayers} onClose={()=>setPanel(null)}/>} {panel==="map"&&<MiniMap position={position} remotePlayers={remotePlayers} onClose={()=>setPanel(null)}/>} {panel==="settings"&&<SettingsPanel transparency={transparency} setTransparency={setTransparency} onClose={()=>setPanel(null)}/>} {panel==="invite"&&<InvitePanel inviteCode={worldInvite} onClose={()=>setPanel(null)}/>}
+    </>:<JoinWorld playerName={playerName} setPlayerName={setPlayerName} inviteCode={inviteCode} setInviteCode={setInviteCode} isConnecting={status==="Connecting…"} error={error} onCreate={()=>begin("create")} onJoin={()=>begin("join")}/>}
+    <div className="sr-only" aria-live="polite">{activeKeys&&Object.keys(activeKeys).length?"Movement active":""}</div>
+  </main>
 }
