@@ -407,6 +407,7 @@ Animation should communicate hierarchy, state, navigation, and social/physical p
 Preferred responsibilities:
 
 - **Lenis** — smooth scrolling for the landing page.
+- **Scroll-linked cinematic transitions** — custom landing-page sections may map scroll progress to typography scale, opacity, blur, grid movement, and transition layers. These effects are presentation-only and must not alter product state.
 - **Animate UI / Motion** — React UI transitions, interactive controls, component animations, and micro-interactions.
 - **Canvas** — actual virtual-world rendering.
 - Additional animation systems should only be introduced when a concrete interaction requires them.
