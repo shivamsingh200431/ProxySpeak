@@ -1,90 +1,35 @@
 import { useEffect, useRef, useState } from "react";
-import { SERVER_URL, socket } from "./socket/socket";
+import { useMovement } from "./hooks/useMovement";
+import WorldCanvas from "./components/WorldCanvas";
+import ControlsOverlay from "./components/ControlsOverlay";
+import WorldHUD from "./components/WorldHUD";
+import { socket, SERVER_URL } from "./socket/index";
 
-const WIDTH = 900;
-const HEIGHT = 520;
-
+/**
+ * ProxySpeak Frontend Application Shell
+ * Responsible for coordinating world state, player identity, controls, and HUD.
+ * Socket.io integration follows the event contract defined in contracts.md.
+ */
 export default function App() {
-  const canvasRef = useRef(null);
+  const [playerName, setPlayerName] = useState("");
+  const [showProximityZone, setShowProximityZone] = useState(true);
+
   const nameRef = useRef("");
   const joinFailedRef = useRef(false);
 
-  const [position, setPosition] = useState({ x: 450, y: 260 });
-  const [name, setName] = useState("");
   const [playerId, setPlayerId] = useState("");
   const [status, setStatus] = useState("Not connected");
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    nameRef.current = name;
-  }, [name]);
+  // Prepared for Week 2 presence integration; currently local-only.
+  const [remotePlayers] = useState([]);
+
+  // Local visual movement prototype; coordinates are not synchronized yet.
+  const { position, heading, activeKeys, resetPosition } = useMovement();
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-
-    ctx.clearRect(0, 0, WIDTH, HEIGHT);
-    ctx.fillStyle = "#111827";
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
-    ctx.strokeStyle = "#374151";
-
-    for (let x = 0; x <= WIDTH; x += 40) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, HEIGHT);
-      ctx.stroke();
-    }
-
-    for (let y = 0; y <= HEIGHT; y += 40) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(WIDTH, y);
-      ctx.stroke();
-    }
-
-    ctx.beginPath();
-    ctx.arc(position.x, position.y, 90, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(59, 130, 246, 0.15)";
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(position.x, position.y, 90, 0, Math.PI * 2);
-    ctx.strokeStyle = "#60a5fa";
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(position.x, position.y, 12, 0, Math.PI * 2);
-    ctx.fillStyle = "#60a5fa";
-    ctx.fill();
-
-    ctx.fillStyle = "#dbeafe";
-    ctx.font = "14px Arial";
-    ctx.fillText("You", position.x - 12, position.y - 20);
-  }, [position]);
-
-  useEffect(() => {
-    function move(event) {
-      const step = 10;
-
-      setPosition((current) => {
-        const next = { ...current };
-        const key = event.key.toLowerCase();
-
-        if (key === "w" || event.key === "ArrowUp") next.y -= step;
-        if (key === "s" || event.key === "ArrowDown") next.y += step;
-        if (key === "a" || event.key === "ArrowLeft") next.x -= step;
-        if (key === "d" || event.key === "ArrowRight") next.x += step;
-
-        next.x = Math.max(20, Math.min(WIDTH - 20, next.x));
-        next.y = Math.max(20, Math.min(HEIGHT - 20, next.y));
-
-        return next;
-      });
-    }
-
-    window.addEventListener("keydown", move);
-    return () => window.removeEventListener("keydown", move);
-  }, []);
+    nameRef.current = playerName;
+  }, [playerName]);
 
   useEffect(() => {
     function handleConnect() {
@@ -109,7 +54,6 @@ export default function App() {
 
     function handleDisconnect() {
       setPlayerId("");
-
       if (!joinFailedRef.current) {
         setStatus("Disconnected");
       }
@@ -128,18 +72,14 @@ export default function App() {
     };
   }, []);
 
-  function handleNameChange(event) {
-    const value = event.target.value;
-    setName(value);
+  function handleNameChange(value) {
+    setPlayerName(value);
     nameRef.current = value;
-
-    if (error) {
-      setError("");
-    }
+    if (error) setError("");
   }
 
   function handleConnectClick() {
-    const trimmedName = name.trim();
+    const trimmedName = playerName.trim();
 
     if (!trimmedName) {
       setError("Enter a name before joining.");
@@ -170,18 +110,18 @@ export default function App() {
 
   return (
     <main className="app">
-      <header>
+      <header className="app-header">
         <div>
           <p className="eyebrow">PROXIMITY AUDIO ECOSYSTEM</p>
-          <h1>ProxySpeak</h1>
+          <h1 className="app-title">ProxySpeak</h1>
           <p className="subtitle">
             A shared digital space where distance influences communication.
           </p>
         </div>
 
-        <div className={`status ${isJoined ? "status--online" : ""}`}>
+        <div className={`status-badge${isJoined ? " status-badge--online" : ""}`} role="status">
           <span className="status-dot" />
-          {status}
+          <span>{status}</span>
         </div>
       </header>
 
@@ -189,7 +129,7 @@ export default function App() {
         <div className="toolbar">
           <div>
             <h2>Virtual Workspace</h2>
-            <p>Move using WASD or arrow keys.</p>
+            <p>Move your avatar using W, A, S, D or the Arrow keys.</p>
           </div>
 
           <div className="join-panel">
@@ -197,8 +137,8 @@ export default function App() {
             <div className="join-controls">
               <input
                 id="display-name"
-                value={name}
-                onChange={handleNameChange}
+                value={playerName}
+                onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="Enter your name"
                 name="displayName"
                 autoComplete="off"
@@ -208,6 +148,7 @@ export default function App() {
 
               {isJoined ? (
                 <button
+                  type="button"
                   className="button button--secondary"
                   onClick={handleLeave}
                 >
@@ -215,11 +156,12 @@ export default function App() {
                 </button>
               ) : (
                 <button
+                  type="button"
                   className="button"
                   onClick={handleConnectClick}
                   disabled={isConnecting}
                 >
-                  {isConnecting ? "Joining..." : "Join World"}
+                  {isConnecting ? "Joining…" : "Join World"}
                 </button>
               )}
             </div>
@@ -229,31 +171,50 @@ export default function App() {
 
         {error && <p className="error">{error}</p>}
 
-        <canvas ref={canvasRef} width={WIDTH} height={HEIGHT} />
+        <ControlsOverlay
+          activeKeys={activeKeys}
+          onResetPosition={resetPosition}
+          showProximityZone={showProximityZone}
+          onToggleProximityZone={() => setShowProximityZone((prev) => !prev)}
+        />
+
+        <WorldCanvas
+          position={position}
+          heading={heading}
+          playerName={playerName || "You"}
+          remotePlayers={remotePlayers}
+          showProximityZone={showProximityZone}
+        />
       </section>
 
-      <section className="stats">
-        <div>
-          <span>Position</span>
-          <strong>
-            X: {Math.round(position.x)} / Y: {Math.round(position.y)}
-          </strong>
+      <WorldHUD position={position} remotePlayersCount={remotePlayers.length} />
+
+      <section className="stats-row">
+        <div className="stat-card">
+          <span className="stat-label">Player ID</span>
+          <strong className="stat-value mono">{playerId || "—"}</strong>
+          <span className="stat-meta">Server-assigned (6 chars)</span>
         </div>
 
-        <div>
-          <span>Player ID</span>
-          <strong className="mono">{playerId || "—"}</strong>
-        </div>
-
-        <div>
-          <span>World</span>
-          <strong>Single shared world</strong>
+        <div className="stat-card">
+          <span className="stat-label">World</span>
+          <strong className="stat-value">Single shared world</strong>
+          <span className="stat-meta">Multi-world in a future milestone</span>
         </div>
       </section>
 
       <p className="server-info">
-        Connected server <span>{SERVER_URL}</span>
+        Connected server: <span>{SERVER_URL}</span>
       </p>
+
+      <footer className="instructions-card">
+        <h3>Proximity Interaction Guide</h3>
+        <p>
+          The <strong>90-unit proximity range</strong> is currently a visual
+          prototype. Proximity filtering and voice connections will be added in
+          future milestones.
+        </p>
+      </footer>
     </main>
   );
 }

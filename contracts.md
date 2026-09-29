@@ -142,6 +142,12 @@ Additional fields may be introduced when required, but the initial movement mode
 
 The server is responsible for maintaining authoritative shared player state.
 
+### Current frontend movement prototype
+
+The current frontend movement implementation is a local visual prototype. It updates the local Canvas position using keyboard input, but it does not synchronize coordinates with the server or other clients.
+
+Position synchronization, remote-player state, and authoritative movement validation remain Week 2 work.
+
 ## 8. Socket.io Event Contract
 
 Finalized for the connection/join/leave layer (Milestone 2, Week 1). Movement and full presence-list events will be appended here in Week 2 once the player registry (shared world state) lands.
@@ -201,6 +207,14 @@ Clients may send movement updates or movement intentions, but the server must:
 
 Audio will be introduced only after movement and presence synchronization are stable.
 
+### Proximity design decision
+
+The initial planned proximity threshold is **90 world units**.
+
+This value is currently used by the frontend only as a visual radius/prototype. It does not yet establish an active voice connection, server-side proximity filtering, or WebRTC behavior.
+
+When the proximity system is implemented, the server/client contract will define how distance is calculated and how entering/leaving the threshold affects nearby-player state.
+
 Expected flow:
 
 ```text
@@ -252,7 +266,7 @@ The first audio implementation should prioritize reliable connections, understan
 - Define world coordinate rules
 - Calculate player distance
 - Identify nearby players
-- Apply proximity thresholds
+- Apply the 90-unit proximity threshold
 - Handle entering and leaving proximity range
 
 ### Milestone 4 — Voice Communication
