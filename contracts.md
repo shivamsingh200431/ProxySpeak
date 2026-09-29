@@ -20,3 +20,26 @@ The workspace world camera and avatar movement bounds are now intentionally deco
 This preserves the intended spatial-world behavior: **the world continues behind the interface, while the avatar stays out of the interface's interaction space.**
 
 This is a client presentation/movement change only and does not alter server-authoritative world bounds or Socket.io contracts.
+
+
+## 21. Room and Corridor Collision Alignment — 2026-09-30
+
+The prototype collision layer now follows the visible six-room SVG architecture instead of only blocking furniture.
+
+### Collision behavior
+
+- Outer world boundaries block the avatar from leaving the world.
+- Each room's visible walls are represented by collision segments.
+- Door/corridor openings remain traversable.
+- The top and bottom room rows connect through the three vertical corridors.
+- Rooms in each row connect through the horizontal corridors.
+- Furniture remains solid and blocks avatar movement.
+- Collision uses the same 900 × 520 coordinate system as the world artwork.
+
+### Movement expectation
+
+The avatar should be able to traverse the workspace through the visible corridors and door openings while being blocked by walls and furniture.
+
+Collision remains client-side movement/presentation logic. The server continues to own authoritative multiplayer position state and world bounds.
+
+This is a prototype alignment layer. When the world is migrated to Tiled, these hand-authored rectangles should be replaced by collision objects from the map.
