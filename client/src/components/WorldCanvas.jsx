@@ -214,7 +214,7 @@ function drawWorld(ctx, art, position, playerName, remotePlayers, showProximityZ
     ctx.strokeStyle = "rgba(255,48,47,.52)";
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(position.x, position.y, AUDIO_RADIUS, 0, Math.PI * 2);
+    ctx.arc(localDrawPosition.x, localDrawPosition.y, AUDIO_RADIUS, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
   }
