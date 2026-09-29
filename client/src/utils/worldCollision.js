@@ -1,92 +1,146 @@
 import { WORLD_HEIGHT, WORLD_WIDTH } from "../constants/world";
 
 export const WORLD_BOUNDS = {
-  minX: 42,
-  minY: 42,
-  maxX: WORLD_WIDTH - 42,
-  maxY: WORLD_HEIGHT - 42
+  minX: 60,
+  minY: 60,
+  maxX: WORLD_WIDTH - 60,
+  maxY: WORLD_HEIGHT - 60
 };
 
-const WALL = 4;
-const DOOR = 30;
+const WALL = 6;
+const DOOR = 70;
 
-// The SVG world is a six-room grid. Collision follows the visible
-// architecture while leaving the same corridor/door openings open.
-// Rendering and collision stay separate so the art can later be replaced
-// by a Tiled map without changing movement code.
+function horizontalWall(x, y, width, gapCenters = []) {
+  if (!gapCenters.length) return [{ x, y, w: width, h: WALL }];
 
-function horizontalWall(x, y, width, gapCenter = null) {
-  if (gapCenter == null) return [{ x, y, w: width, h: WALL }];
+  const gaps = gapCenters
+    .map((center) => [center - DOOR / 2, center + DOOR / 2])
+    .sort((a, b) => a[0] - b[0]);
 
-  const gapStart = gapCenter - DOOR / 2;
-  const gapEnd = gapCenter + DOOR / 2;
+  const segments = [];
+  let cursor = x;
 
-  return [
-    ...(gapStart > x ? [{ x, y, w: gapStart - x, h: WALL }] : []),
-    ...(gapEnd < x + width ? [{ x: gapEnd, y, w: x + width - gapEnd, h: WALL }] : [])
-  ];
+  for (const [gapStart, gapEnd] of gaps) {
+    if (gapStart > cursor) segments.push({ x: cursor, y, w: gapStart - cursor, h: WALL });
+    cursor = Math.max(cursor, gapEnd);
+  }
+
+  if (cursor < x + width) segments.push({ x: cursor, y, w: x + width - cursor, h: WALL });
+  return segments;
 }
 
-function verticalWall(x, y, height, gapCenter = null) {
-  if (gapCenter == null) return [{ x, y, w: WALL, h: height }];
+function verticalWall(x, y, height, gapCenters = []) {
+  if (!gapCenters.length) return [{ x, y, w: WALL, h: height }];
 
-  const gapStart = gapCenter - DOOR / 2;
-  const gapEnd = gapCenter + DOOR / 2;
+  const gaps = gapCenters
+    .map((center) => [center - DOOR / 2, center + DOOR / 2])
+    .sort((a, b) => a[0] - b[0]);
 
-  return [
-    ...(gapStart > y ? [{ x, y, w: WALL, h: gapStart - y }] : []),
-    ...(gapEnd < y + height ? [{ x, y: gapEnd, w: WALL, h: y + height - gapEnd }] : [])
-  ];
+  const segments = [];
+  let cursor = y;
+
+  for (const [gapStart, gapEnd] of gaps) {
+    if (gapStart > cursor) segments.push({ x, y: cursor, w: WALL, h: gapStart - cursor });
+    cursor = Math.max(cursor, gapEnd);
+  }
+
+  if (cursor < y + height) segments.push({ x, y: cursor, w: WALL, h: y + height - cursor });
+  return segments;
 }
 
+// Large connected workspace: three columns, three room bands,
+// wide horizontal and vertical corridors, and a central hub.
 const OUTER_WALLS = [
-  { x: 32, y: 32, w: 836, h: WALL },
-  { x: 32, y: 484, w: 836, h: WALL },
-  { x: 32, y: 32, w: WALL, h: 456 },
-  { x: 864, y: 32, w: WALL, h: 456 }
+  { x: 60, y: 60, w: 1680, h: WALL },
+  { x: 60, y: 1040, w: 1680, h: WALL },
+  { x: 60, y: 60, w: WALL, h: 986 },
+  { x: 1734, y: 60, w: WALL, h: 986 }
 ];
 
 const ROOM_WALLS = [
-  // Top row.
-  ...horizontalWall(58, 58, 230),
-  ...horizontalWall(58, 205, 230, 170),
-  ...verticalWall(58, 58, 150),
-  ...verticalWall(285, 58, 150, 116),
+  // Top band.
+  ...horizontalWall(100, 100, 400),
+  ...horizontalWall(100, 350, 400, [300]),
+  ...verticalWall(100, 100, 250),
+  ...verticalWall(500, 100, 250, [225]),
 
-  ...horizontalWall(330, 58, 240),
-  ...horizontalWall(330, 205, 240, 450),
-  ...verticalWall(330, 58, 150, 116),
-  ...verticalWall(567, 58, 150, 116),
+  ...horizontalWall(650, 100, 500),
+  ...horizontalWall(650, 350, 500, [900]),
+  ...verticalWall(650, 100, 250, [225]),
+  ...verticalWall(1150, 100, 250, [225]),
 
-  ...horizontalWall(612, 58, 230),
-  ...horizontalWall(612, 205, 230, 727),
-  ...verticalWall(612, 58, 150, 116),
-  ...verticalWall(839, 58, 150),
+  ...horizontalWall(1300, 100, 400),
+  ...horizontalWall(1300, 350, 400, [1500]),
+  ...verticalWall(1300, 100, 250, [225]),
+  ...verticalWall(1700, 100, 250),
 
-  // Bottom row.
-  ...horizontalWall(58, 288, 230, 170),
-  ...horizontalWall(58, 458, 230),
-  ...verticalWall(58, 288, 170),
-  ...verticalWall(285, 288, 170, 355),
+  // Middle band.
+  ...horizontalWall(100, 475, 400, [300]),
+  ...horizontalWall(100, 725, 400, [300]),
+  ...verticalWall(100, 475, 250),
+  ...verticalWall(500, 475, 250, [600]),
 
-  ...horizontalWall(330, 288, 240, 450),
-  ...horizontalWall(330, 458, 240),
-  ...verticalWall(330, 288, 170, 355),
-  ...verticalWall(567, 288, 170, 355),
+  ...horizontalWall(650, 475, 500, [900]),
+  ...horizontalWall(650, 725, 500, [900]),
+  ...verticalWall(650, 475, 250, [600]),
+  ...verticalWall(1150, 475, 250, [600]),
 
-  ...horizontalWall(612, 288, 230, 727),
-  ...horizontalWall(612, 458, 230),
-  ...verticalWall(612, 288, 170, 355),
-  ...verticalWall(839, 288, 170)
+  ...horizontalWall(1300, 475, 400, [1500]),
+  ...horizontalWall(1300, 725, 400, [1500]),
+  ...verticalWall(1300, 475, 250, [600]),
+  ...verticalWall(1700, 475, 250),
+
+  // Bottom band.
+  ...horizontalWall(100, 850, 400, [300]),
+  ...horizontalWall(100, 1030, 400),
+  ...verticalWall(100, 850, 180),
+  ...verticalWall(500, 850, 180, [940]),
+
+  ...horizontalWall(650, 850, 500, [900]),
+  ...horizontalWall(650, 1030, 500),
+  ...verticalWall(650, 850, 180, [940]),
+  ...verticalWall(1150, 850, 180, [940]),
+
+  ...horizontalWall(1300, 850, 400, [1500]),
+  ...horizontalWall(1300, 1030, 400),
+  ...verticalWall(1300, 850, 180, [940]),
+  ...verticalWall(1700, 850, 180)
 ];
 
 const FURNITURE_SOLIDS = [
-  { x: 88, y: 114, w: 158, h: 42 },
-  { x: 88, y: 348, w: 150, h: 46 },
-  { x: 662, y: 346, w: 130, h: 44 },
-  { x: 378, y: 116, w: 144, h: 56 },
-  { x: 660, y: 114, w: 130, h: 58 },
-  { x: 382, y: 340, w: 136, h: 62 }
+  // Lounge.
+  { x: 150, y: 155, w: 190, h: 52 },
+  { x: 375, y: 275, w: 70, h: 38 },
+
+  // Focus.
+  { x: 760, y: 150, w: 280, h: 70 },
+  { x: 720, y: 265, w: 120, h: 42 },
+  { x: 980, y: 265, w: 120, h: 42 },
+
+  // Meeting.
+  { x: 1380, y: 145, w: 240, h: 76 },
+
+  // Social.
+  { x: 150, y: 525, w: 180, h: 52 },
+  { x: 355, y: 650, w: 90, h: 38 },
+
+  // Central hub.
+  { x: 760, y: 535, w: 280, h: 64 },
+  { x: 760, y: 640, w: 120, h: 42 },
+  { x: 920, y: 640, w: 120, h: 42 },
+
+  // Quiet.
+  { x: 1380, y: 540, w: 240, h: 64 },
+
+  // Work.
+  { x: 150, y: 895, w: 180, h: 54 },
+  { x: 360, y: 955, w: 90, h: 34 },
+
+  // Lab.
+  { x: 760, y: 885, w: 280, h: 58 },
+
+  // Archive.
+  { x: 1380, y: 890, w: 240, h: 52 }
 ];
 
 export const SOLID_RECTS = [...OUTER_WALLS, ...ROOM_WALLS];
