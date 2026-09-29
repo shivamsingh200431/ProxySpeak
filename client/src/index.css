@@ -1169,3 +1169,76 @@ linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90de
     --workspace-world-left:74px;
   }
 }
+
+
+/* ============================================================
+   Workspace container v4
+   The world is a contained viewport: right of the sidebar,
+   below the top navigation, with rounded clipping.
+   ============================================================ */
+.workspace-app--joined .workspace-world{
+  top:104px;
+  right:20px;
+  bottom:20px;
+  left:310px;
+  width:auto;
+  height:auto;
+  padding:0;
+  display:block;
+  overflow:hidden;
+  border-radius:16px;
+  background:#0d0d0c;
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 24px 70px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+.workspace-app--joined .workspace-world .canvas-container{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  border-radius:inherit;
+  overflow:hidden;
+  background:#0d0d0c;
+}
+
+.workspace-app--joined .workspace-world .world-canvas{
+  position:absolute;
+  inset:0;
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:fill;
+}
+
+.workspace-app--joined .workspace-world:after{
+  border-radius:inherit;
+  overflow:hidden;
+  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.28) 100%);
+}
+
+@media(max-width:1200px){
+  .workspace-app--joined .workspace-world{
+    left:240px;
+  }
+}
+
+@media(max-width:760px){
+  .workspace-app--joined .workspace-world{
+    top:78px;
+    right:12px;
+    bottom:12px;
+    left:222px;
+    border-radius:14px;
+  }
+}
+
+@media(max-width:560px){
+  .workspace-app--joined .workspace-world{
+    left:76px;
+    top:78px;
+    right:10px;
+    bottom:82px;
+    border-radius:13px;
+  }
+}
