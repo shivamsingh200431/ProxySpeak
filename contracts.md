@@ -612,3 +612,43 @@ The supplied ProxySpeak workspace reference is the visual target for the active 
 - compact floating labels and controls.
 
 The reference is a design target, not a promise that every visual element shown in the reference is already implemented.
+
+## 17. Workspace Refinement — 2026-09-29
+
+The active workspace visual reference has been refined from the supplied screenshots.
+
+### World framing
+
+- The world is rendered inside a contained, aspect-ratio-preserving stage rather than being stretched/cropped to fill the entire viewport.
+- A soft perimeter, vignette, and shadow communicate the world boundary without a heavy solid frame.
+- Canvas rendering now adapts its internal pixel density to the displayed stage size so labels and avatars remain crisp on high-resolution screens.
+
+### Avatar direction
+
+- User and remote people are represented as simple stickman figures.
+- Local and remote identity remains distinguishable through red/green rings and labels.
+- Canvas labels remain readable and are no longer intentionally blurred.
+
+### Contextual controls
+
+- Clicking outside an open floating panel closes it.
+- Clicking the active Settings control toggles Settings closed.
+- Opening another contextual panel replaces the previous one.
+- Floating panels use responsive max-widths so they shrink with the viewport.
+
+### Dynamic bottom dock
+
+The center glass dock is content-driven.
+
+- The dock width is derived from the number of available actions.
+- Map and microphone controls are available after joining a world.
+- People appears when another real member is present.
+- No unused decorative action buttons are rendered.
+- Microphone control requests browser microphone permission on first use and can enable/disable the local microphone track. Actual peer voice transmission remains a future WebRTC milestone.
+
+### Background implementation boundary
+
+- The workspace background uses a restrained animated pattern/vignette and a contained world stage.
+- Inspira UI is Vue/Nuxt-first, so its copy-first visual patterns are adapted rather than installed as a direct React dependency.
+- Animate UI is also copy-first rather than a conventional runtime library; its blur/fade/slide interaction principles are adapted into the workspace panel behavior.
+- Lenis remains the landing-page smooth-scroll system. The active workspace is intentionally viewport-based and does not add Lenis scrolling to the world surface, because smooth scrolling would conflict with the spatial application's direct manipulation model.
