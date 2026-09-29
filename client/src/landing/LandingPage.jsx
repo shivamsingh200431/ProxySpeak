@@ -114,9 +114,9 @@ function CinematicTransition({ eyebrow, word, title, copy, accent = "red" }) {
     >
       <div className="cinematic-sticky">
         <div className="cinematic-grid" aria-hidden="true" />
-        <div className="cinematic-word" aria-hidden="true">{word}</div>
-        <div className="cinematic-scan" aria-hidden="true" />
         <div className="cinematic-copy">
+          <div className="cinematic-word" aria-hidden="true">{word}</div>
+          <div className="cinematic-scan" aria-hidden="true" />
           <span className="section-kicker">{eyebrow}</span>
           <h2>{title}</h2>
           <p>{copy}</p>
