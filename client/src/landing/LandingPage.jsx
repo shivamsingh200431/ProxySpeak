@@ -211,7 +211,7 @@ export default function LandingPage() {
             <motion.p variants={{ hidden: { opacity: 0, y: 22 }, visible: { opacity: 1, y: 0 } }}>
               ProxySpeak turns distance into a communication layer. Walk closer,
               start talking. Walk away, the conversation fades naturally.
-            </p>
+            </motion.p>
 
             <motion.div className="hero-actions" variants={{ hidden: { opacity: 0, y: 18 }, visible: { opacity: 1, y: 0 } }}>
               <MagneticCTA className="primary-cta" href="/app">
