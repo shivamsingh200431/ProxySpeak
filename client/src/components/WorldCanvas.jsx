@@ -4,7 +4,7 @@ import { getWorldViewport } from "../utils/worldViewport";
 import { getCameraTarget, getInitialCamera } from "../utils/camera";
 
 const WORLD_ART = "/world/proxyspeak-world.svg";
-const CAMERA_LERP = 0.14;
+const CAMERA_SMOOTHING = 0.16;
 
 export default function WorldCanvas({
   position,
@@ -19,62 +19,103 @@ export default function WorldCanvas({
   const playersRef = useRef(remotePlayers);
   const nameRef = useRef(playerName);
   const proximityRef = useRef(showProximityZone);
+  const renderRef = useRef(null);
+  const needsRenderRef = useRef(true);
 
-  useEffect(() => { playerRef.current = position; }, [position]);
-  useEffect(() => { playersRef.current = remotePlayers; }, [remotePlayers]);
-  useEffect(() => { nameRef.current = playerName; }, [playerName]);
-  useEffect(() => { proximityRef.current = showProximityZone; }, [showProximityZone]);
+  useEffect(() => {
+    playerRef.current = position;
+    needsRenderRef.current = true;
+  }, [position]);
+
+  useEffect(() => {
+    playersRef.current = remotePlayers;
+    needsRenderRef.current = true;
+  }, [remotePlayers]);
+
+  useEffect(() => {
+    nameRef.current = playerName;
+    needsRenderRef.current = true;
+  }, [playerName]);
+
+  useEffect(() => {
+    proximityRef.current = showProximityZone;
+    needsRenderRef.current = true;
+  }, [showProximityZone]);
 
   useEffect(() => {
     const image = new Image();
+    image.decoding = "async";
     image.src = WORLD_ART;
     artRef.current = image;
+    image.onload = () => { needsRenderRef.current = true; };
     return () => { image.onload = null; };
   }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     let frame = 0;
+    let lastWidth = 0;
+    let lastHeight = 0;
+    let lastDpr = 0;
+
+    const resizeCanvas = () => {
+      const width = Math.max(320, canvas.clientWidth);
+      const height = Math.max(240, canvas.clientHeight);
+      const dpr = window.devicePixelRatio || 1;
+
+      if (width !== lastWidth || height !== lastHeight || dpr !== lastDpr) {
+        lastWidth = width;
+        lastHeight = height;
+        lastDpr = dpr;
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        cameraRef.current = null;
+        needsRenderRef.current = true;
+      }
+      return { width, height, dpr };
+    };
 
     const render = () => {
-      const cssWidth = Math.max(320, canvas.clientWidth);
-      const cssHeight = Math.max(240, canvas.clientHeight);
-      const dpr = window.devicePixelRatio || 1;
+      const { width, height, dpr } = resizeCanvas();
 
       if (!cameraRef.current) {
         cameraRef.current = getInitialCamera({
           player: playerRef.current,
-          viewportWidth: cssWidth,
-          viewportHeight: cssHeight
+          viewportWidth: width,
+          viewportHeight: height
         });
       }
 
       const target = getCameraTarget({
         player: playerRef.current,
         camera: cameraRef.current,
-        viewportWidth: cssWidth,
-        viewportHeight: cssHeight
+        viewportWidth: width,
+        viewportHeight: height
       });
 
-      cameraRef.current = {
-        x: cameraRef.current.x + (target.x - cameraRef.current.x) * CAMERA_LERP,
-        y: cameraRef.current.y + (target.y - cameraRef.current.y) * CAMERA_LERP
-      };
+      const dx = target.x - cameraRef.current.x;
+      const dy = target.y - cameraRef.current.y;
 
-      canvas.width = Math.round(cssWidth * dpr);
-      canvas.height = Math.round(cssHeight * dpr);
+      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
+        cameraRef.current = {
+          x: cameraRef.current.x + dx * CAMERA_SMOOTHING,
+          y: cameraRef.current.y + dy * CAMERA_SMOOTHING
+        };
+      }
+
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, cssWidth, cssHeight);
+      ctx.clearRect(0, 0, width, height);
       ctx.fillStyle = "#070909";
-      ctx.fillRect(0, 0, cssWidth, cssHeight);
+      ctx.fillRect(0, 0, width, height);
 
       const viewport = getWorldViewport({
-        width: cssWidth,
-        height: cssHeight,
+        width,
+        height,
         camera: cameraRef.current
       });
 
@@ -91,24 +132,50 @@ export default function WorldCanvas({
       );
       ctx.restore();
 
-      frame = requestAnimationFrame(render);
+      const cameraSettled = Math.abs(target.x - cameraRef.current.x) < 0.2 &&
+        Math.abs(target.y - cameraRef.current.y) < 0.2;
+
+      if (needsRenderRef.current || !cameraSettled) {
+        needsRenderRef.current = false;
+        frame = requestAnimationFrame(render);
+      } else {
+        frame = 0;
+      }
+      renderRef.current = render;
     };
 
-    const art = artRef.current;
-    art?.addEventListener("load", render);
+    renderRef.current = render;
+    render();
+
     const observer = new ResizeObserver(() => {
-      cameraRef.current = null;
+      needsRenderRef.current = true;
+      if (!frame) frame = requestAnimationFrame(render);
     });
     observer.observe(canvas);
 
-    render();
+    const wake = () => {
+      needsRenderRef.current = true;
+      if (!frame) frame = requestAnimationFrame(render);
+    };
+    window.addEventListener("resize", wake);
 
     return () => {
-      art?.removeEventListener("load", render);
       observer.disconnect();
-      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", wake);
+      if (frame) cancelAnimationFrame(frame);
     };
   }, []);
+
+  useEffect(() => {
+    if (!renderRef.current) return;
+    needsRenderRef.current = true;
+    // The movement hook publishes positions through React state. Wake the
+    // renderer for that frame; camera smoothing continues until settled.
+    const frame = requestAnimationFrame(() => {
+      if (renderRef.current) renderRef.current();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [position]);
 
   return <div className="canvas-container"><canvas ref={canvasRef} className="world-canvas" /></div>;
 }
