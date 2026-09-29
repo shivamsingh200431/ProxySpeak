@@ -73,3 +73,38 @@ The visual reference is the **connected-room traversal structure** of social mul
 - Collision remains client-side movement/presentation logic; the server still owns shared player position state.
 
 This is still a prototype layout. The next map-art iteration can replace the SVG with a proper Tiled-authored map while preserving the movement and multiplayer contracts. Tiled's JSON map format supports tile layers and object layers, including positioned objects that can carry collision-related data.
+
+
+## 23. Player-Follow Camera with Deadzone and World-Edge Clamping — 2026-09-30
+
+The workspace now uses a camera that views a portion of the larger world instead of fitting the complete map into the viewport.
+
+### Camera model
+
+- Player coordinates remain absolute world coordinates.
+- The camera has its own world-space X/Y position.
+- Screen position is derived as:
+  - `screenX = playerX - cameraX`
+  - `screenY = playerY - cameraY`
+- The camera uses a deadzone occupying approximately 30%–70% of the viewport on both axes.
+- The player can move freely inside that deadzone without moving the map.
+- When the player crosses a deadzone edge, the camera follows by translating the world in the opposite direction.
+- Camera movement is smoothed with interpolation so following is not visually abrupt.
+
+### Camera clamping
+
+The camera is clamped to:
+
+- `0 <= cameraX <= WORLD_WIDTH - viewportWidth`
+- `0 <= cameraY <= WORLD_HEIGHT - viewportHeight`
+
+When the camera reaches a world edge, it stops. The avatar can then continue moving toward the corresponding physical edge of the world/viewport.
+
+### Movement relationship
+
+- Avatar movement is constrained by world/collision bounds, not by UI panels.
+- Opening Settings, People, Map, or Invite does not change the player's movement bounds or camera coordinate system.
+- Rendering translates the world by `-cameraX, -cameraY`.
+- Remote players remain in absolute world coordinates and are rendered only when inside the current camera viewport.
+
+This establishes the map as a genuinely larger navigable world and makes the camera responsible for viewport tracking.
