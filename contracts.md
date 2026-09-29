@@ -476,3 +476,53 @@ The Proximity Lab is explicitly a presentation-only simulation until the real pr
 The landing page continues to use the dark corporate foundation, red brand/action color, yellow proximity/attention color, green active state, and Atkinson Hyperlegible typography defined in Section 13.
 
 The landing page should prefer restrained grids, frames, product diagrams, and purposeful transitions over particles, glowing blobs, excessive gradients, cursor trails, or oversized cinematic effects.
+
+
+## 15. Workspace UI System — 2026-09-29
+
+The `/app` workspace now follows the supplied ProxySpeak visual direction: a dark spatial environment with a glassmorphism interface layered above the world.
+
+### UI structure
+
+The workspace shell includes:
+
+- persistent top workspace bar;
+- left navigation for Lounge, People, Map, and Settings;
+- room summary and people presence area;
+- central HTML5 Canvas world;
+- bottom voice/action dock;
+- voice-range indicator;
+- contextual People, Map, and Settings panels.
+
+### Glassmorphism contract
+
+- Workspace surfaces use translucent backgrounds, borders, blur, and restrained highlights.
+- Glass transparency is user-adjustable from Settings.
+- The selected transparency value is applied through the workspace CSS custom property `--glass-alpha`.
+- UI must remain readable across transparency levels; content must not rely on opacity alone for state.
+- The glass system should use restrained blur and contrast rather than excessive glow.
+
+### Color and state contract
+
+- Red is the primary ProxySpeak action/player color.
+- Yellow represents proximity/attention.
+- Green represents active/connected presence.
+- Neutral white/grey provides hierarchy and information.
+- The previous blue application palette is no longer the primary workspace UI language.
+
+### Functionality boundary
+
+The new UI is a presentation layer over the existing prototype functionality.
+
+- People data in the workspace sidebar/panel is partly preview data until remote presence is implemented.
+- Voice controls remain mock/presentation controls until the WebRTC/audio milestones are implemented.
+- The 90u proximity range remains visual-only.
+- Settings transparency is functional and local to the current workspace session.
+- No new UI element may imply that microphone capture, peer audio, or server-side proximity filtering is already operational.
+
+### Responsive behavior
+
+- Desktop is the primary workspace layout.
+- Tablet collapses secondary controls while preserving the world and core actions.
+- Mobile uses compact navigation and a reduced bottom dock.
+- Panels remain accessible without requiring the user to leave the world.
