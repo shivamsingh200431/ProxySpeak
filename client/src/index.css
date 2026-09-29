@@ -2220,7 +2220,7 @@ body.landing-mode #root {
 .cinematic-transition {
   --cinematic-progress: 0;
   position: relative;
-  height: 155vh;
+  height: 165vh;
   background: #080808;
 }
 
@@ -2236,37 +2236,21 @@ body.landing-mode #root {
   box-sizing: border-box;
   border-top: 1px solid #171715;
   border-bottom: 1px solid #171715;
-  padding: clamp(72px, 10vh, 110px) 7vw;
-}
-
-.cinematic-sticky::after {
-  content: "";
-  position: absolute;
-  left: 5vw;
-  right: 5vw;
-  top: 50%;
-  height: clamp(190px, 25vh, 260px);
-  z-index: 3;
-  pointer-events: none;
-  transform: translateY(-50%);
-  border-top: 1px solid rgba(255,255,255,.08);
-  border-bottom: 1px solid rgba(255,255,255,.08);
 }
 
 .cinematic-sticky::before {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: -1;
+  z-index: -2;
   background:
-    radial-gradient(circle at 50% 48%, rgba(255,48,47,.09), transparent 28%),
+    radial-gradient(circle at 50% 50%, rgba(255,48,47,.09), transparent 30%),
     linear-gradient(180deg, #090909, #050505 70%, #080808);
-  opacity: calc(.45 + var(--cinematic-progress) * .55);
 }
 
 .cinematic-transition--yellow .cinematic-sticky::before {
   background:
-    radial-gradient(circle at 50% 48%, rgba(255,200,61,.08), transparent 28%),
+    radial-gradient(circle at 50% 50%, rgba(255,200,61,.08), transparent 30%),
     linear-gradient(180deg, #090909, #050505 70%, #080808);
 }
 
@@ -2281,33 +2265,46 @@ body.landing-mode #root {
   transform:
     perspective(900px)
     rotateX(62deg)
-    translateY(calc(var(--cinematic-progress) * -80px))
+    translateY(calc(var(--cinematic-progress) * -60px))
     scale(1.45);
   transform-origin: center bottom;
   mask-image: linear-gradient(to bottom, transparent, black 25%, black 78%, transparent);
-  opacity: calc(.12 + var(--cinematic-progress) * .2);
+  opacity: calc(.10 + var(--cinematic-progress) * .18);
+}
+
+.cinematic-frame {
+  position: absolute;
+  left: 6vw;
+  right: 6vw;
+  top: 50%;
+  height: clamp(220px, 29vh, 300px);
+  z-index: 3;
+  transform: translateY(-50%);
+  border-top: 1px solid rgba(255,255,255,.12);
+  border-bottom: 1px solid rgba(255,255,255,.12);
+  pointer-events: none;
 }
 
 .cinematic-word {
   position: absolute;
   left: 50%;
   top: 50%;
-  z-index: -1;
+  z-index: 0;
   width: max-content;
   transform:
     translate(-50%, -50%)
-    scale(calc(1.48 - var(--cinematic-progress) * .58));
+    scale(calc(1.55 - var(--cinematic-progress) * .55));
   transform-origin: center;
   color: #f2f1ea;
-  font-size: clamp(76px, 14vw, 210px);
+  font-size: clamp(72px, 13vw, 190px);
   font-weight: 700;
   line-height: .72;
   letter-spacing: -.09em;
   white-space: nowrap;
   user-select: none;
   pointer-events: none;
-  opacity: calc(.13 - var(--cinematic-progress) * .085);
-  filter: blur(calc((1 - var(--cinematic-progress)) * 1.2px));
+  opacity: calc(.08 - var(--cinematic-progress) * .045);
+  filter: blur(calc((1 - var(--cinematic-progress)) * 5px));
 }
 
 .cinematic-transition--yellow .cinematic-word {
@@ -2316,20 +2313,22 @@ body.landing-mode #root {
 
 .cinematic-scan {
   position: absolute;
-  left: 7vw;
-  right: 7vw;
-  top: calc(50% + (var(--cinematic-progress) - .5) * 34vh);
+  left: 6vw;
+  right: 6vw;
+  top: 50%;
+  z-index: 2;
   height: 1px;
   background: linear-gradient(
     90deg,
     transparent,
     var(--lp-red) 20%,
-    rgba(255,255,255,.8) 50%,
+    rgba(255,255,255,.75) 50%,
     var(--lp-red) 80%,
     transparent
   );
-  opacity: calc(.12 + var(--cinematic-progress) * .5);
+  opacity: calc(.10 + var(--cinematic-progress) * .45);
   box-shadow: 0 0 22px rgba(255,48,47,.18);
+  pointer-events: none;
 }
 
 .cinematic-transition--yellow .cinematic-scan {
@@ -2337,7 +2336,7 @@ body.landing-mode #root {
     90deg,
     transparent,
     var(--lp-yellow) 20%,
-    rgba(255,255,255,.8) 50%,
+    rgba(255,255,255,.75) 50%,
     var(--lp-yellow) 80%,
     transparent
   );
@@ -2349,28 +2348,25 @@ body.landing-mode #root {
   left: 50%;
   top: 50%;
   z-index: 4;
-  width: min(920px, 84vw);
-  max-height: 72vh;
+  width: min(900px, 82vw);
   text-align: center;
   transform:
     translate(-50%, -50%)
-    translateY(calc((1 - var(--cinematic-progress)) * 70px))
-    scale(calc(.92 + var(--cinematic-progress) * .08));
-  opacity: calc(var(--cinematic-progress) * 1.35);
-  filter: blur(calc((1 - var(--cinematic-progress)) * 4px));
+    scale(calc(.94 + var(--cinematic-progress) * .06));
+  transform-origin: center;
+  opacity: calc(var(--cinematic-progress) * 1.4);
+  filter: blur(calc((1 - var(--cinematic-progress)) * 5px));
   will-change: transform, opacity, filter;
 }
 
 .cinematic-copy .section-kicker {
-  margin-bottom: 22px;
+  margin-bottom: 20px;
 }
 
 .cinematic-copy h2 {
   margin: 0;
-  max-width: 900px;
-  margin-inline: auto;
-  font-size: clamp(46px, 6.8vw, 104px);
-  line-height: .86;
+  font-size: clamp(48px, 6.5vw, 100px);
+  line-height: .88;
   letter-spacing: -.07em;
 }
 
@@ -2384,8 +2380,8 @@ body.landing-mode #root {
 }
 
 .cinematic-copy p {
-  max-width: 560px;
-  margin: 34px auto 0;
+  max-width: 540px;
+  margin: 30px auto 0;
   color: #777773;
   font-size: 15px;
   line-height: 1.65;
@@ -2394,7 +2390,8 @@ body.landing-mode #root {
 .cinematic-meter {
   position: absolute;
   left: 50%;
-  bottom: clamp(26px, 4vh, 42px);
+  bottom: 30px;
+  z-index: 5;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -2430,25 +2427,21 @@ body.landing-mode #root {
 
 @media (max-width: 760px) {
   .cinematic-transition {
-    height: 135vh;
+    height: 145vh;
   }
 
   .cinematic-sticky {
     min-height: 560px;
-    padding: 64px 20px;
   }
 
-  .cinematic-sticky::after {
+  .cinematic-frame {
     left: 20px;
     right: 20px;
-    top: 50%;
     height: 230px;
-    transform: translateY(-50%);
   }
 
   .cinematic-word {
-    font-size: clamp(64px, 18vw, 130px);
-    letter-spacing: -.08em;
+    font-size: clamp(60px, 17vw, 125px);
   }
 
   .cinematic-copy {
@@ -2456,11 +2449,11 @@ body.landing-mode #root {
   }
 
   .cinematic-copy h2 {
-    font-size: clamp(48px, 13vw, 86px);
+    font-size: clamp(46px, 12vw, 80px);
   }
 
   .cinematic-copy p {
-    max-width: 440px;
+    max-width: 430px;
     font-size: 14px;
   }
 
@@ -2475,15 +2468,17 @@ body.landing-mode #root {
   .cinematic-grid,
   .cinematic-scan,
   .cinematic-meter {
-    transform: none;
-    filter: none;
+    transition: none;
   }
 
   .cinematic-word {
     opacity: .06;
+    filter: none;
   }
 
   .cinematic-copy {
     opacity: 1;
+    filter: none;
+    transform: translate(-50%, -50%);
   }
 }
