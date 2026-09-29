@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { MOVE_SPEED, SPAWN_POSITION } from "../constants/world";
-import { getWorldViewport } from "../utils/worldViewport";
-import { canOccupy } from "../utils/worldCollision";
+import { canOccupy, WORLD_BOUNDS } from "../utils/worldCollision";
 
 const PLAYER_RADIUS = 12;
 
-export function useMovement(initialPosition = SPAWN_POSITION, activePanel = null) {
+export function useMovement(initialPosition = SPAWN_POSITION) {
   const [position, setPosition] = useState(initialPosition);
   const [heading, setHeading] = useState(0);
   const [activeKeys, setActiveKeys] = useState({});
@@ -61,25 +60,6 @@ export function useMovement(initialPosition = SPAWN_POSITION, activePanel = null
   }, []);
 
   useEffect(() => {
-    const viewport = getWorldViewport({ panel: activePanel });
-    const current = positionRef.current;
-    const next = {
-      x: Math.max(viewport.minX, Math.min(viewport.maxX, current.x)),
-      y: Math.max(viewport.minY, Math.min(viewport.maxY, current.y))
-    };
-
-    if (!canOccupy(next.x, next.y, PLAYER_RADIUS)) {
-      next.x = SPAWN_POSITION.x;
-      next.y = SPAWN_POSITION.y;
-    }
-
-    if (next.x !== current.x || next.y !== current.y) {
-      positionRef.current = next;
-      setPosition(next);
-    }
-  }, [activePanel]);
-
-  useEffect(() => {
     let lastTime = performance.now();
 
     function updatePhysics(currentTime) {
@@ -103,10 +83,8 @@ export function useMovement(initialPosition = SPAWN_POSITION, activePanel = null
 
         const distance = MOVE_SPEED * delta;
         const current = positionRef.current;
-        const viewport = getWorldViewport({ panel: activePanel });
-
-        const targetX = Math.max(viewport.minX, Math.min(viewport.maxX, current.x + dx * distance));
-        const targetY = Math.max(viewport.minY, Math.min(viewport.maxY, current.y + dy * distance));
+        const targetX = Math.max(WORLD_BOUNDS.minX, Math.min(WORLD_BOUNDS.maxX, current.x + dx * distance));
+        const targetY = Math.max(WORLD_BOUNDS.minY, Math.min(WORLD_BOUNDS.maxY, current.y + dy * distance));
 
         // Resolve axes independently so the player can slide along walls.
         let nextX = current.x;
@@ -130,7 +108,7 @@ export function useMovement(initialPosition = SPAWN_POSITION, activePanel = null
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [activePanel]);
+  });
 
   return { position, heading, activeKeys, resetPosition };
 }
