@@ -1,311 +1,36 @@
 import { useEffect, useRef } from "react";
-import {
-  WORLD_WIDTH,
-  WORLD_HEIGHT,
-  PLAYER_RADIUS,
-  AUDIO_RADIUS,
-  BOUNDARY_PADDING,
-  THEME
-} from "../constants/world";
+import { WORLD_WIDTH,WORLD_HEIGHT,AUDIO_RADIUS,THEME } from "../constants/world";
 
-/**
- * HTML5 Canvas renderer for ProxySpeak virtual world.
- * Supports High-DPI displays, coordinate grid, visual boundary fences,
- * player avatar rendering, proximity audio radius circles, and remote player rendering.
- */
-export default function WorldCanvas({
-  position,
-  heading = 0,
-  playerName = "You",
-  remotePlayers = [],
-  showProximityZone = true
-}) {
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // Handle High-DPI screens for crystal clear lines
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = WORLD_WIDTH * dpr;
-    canvas.height = WORLD_HEIGHT * dpr;
-
-    ctx.save();
-    ctx.scale(dpr, dpr);
-
-    // 1. Draw World Background
-    ctx.fillStyle = THEME.bg;
-    ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-
-    // Subtle background radial gradient
-    const bgGradient = ctx.createRadialGradient(
-      WORLD_WIDTH / 2,
-      WORLD_HEIGHT / 2,
-      50,
-      WORLD_WIDTH / 2,
-      WORLD_HEIGHT / 2,
-      WORLD_WIDTH / 1.5
-    );
-    bgGradient.addColorStop(0, "#0f172a");
-    bgGradient.addColorStop(1, "#070b14");
-    ctx.fillStyle = bgGradient;
-    ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-
-    // 2. Draw Minor & Major Coordinate Grid
-    // Minor grid
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = THEME.gridMinor;
-    for (let x = 0; x <= WORLD_WIDTH; x += 25) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, WORLD_HEIGHT);
-      ctx.stroke();
-    }
-    for (let y = 0; y <= WORLD_HEIGHT; y += 25) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(WORLD_WIDTH, y);
-      ctx.stroke();
-    }
-
-    // Major grid
-    ctx.strokeStyle = THEME.gridMajor;
-    for (let x = 0; x <= WORLD_WIDTH; x += 100) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, WORLD_HEIGHT);
-      ctx.stroke();
-    }
-    for (let y = 0; y <= WORLD_HEIGHT; y += 100) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(WORLD_WIDTH, y);
-      ctx.stroke();
-    }
-
-    // 3. Draw World Boundaries (Visual Wall & Perimeter Accent)
-    const minX = BOUNDARY_PADDING;
-    const maxX = WORLD_WIDTH - BOUNDARY_PADDING;
-    const minY = BOUNDARY_PADDING;
-    const maxY = WORLD_HEIGHT - BOUNDARY_PADDING;
-    const boundWidth = maxX - minX;
-    const boundHeight = maxY - minY;
-
-    // Out-of-bounds danger border
-    ctx.fillStyle = THEME.boundaryFill;
-    ctx.fillRect(minX, minY, boundWidth, boundHeight);
-
-    ctx.strokeStyle = THEME.boundaryWall;
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([8, 6]);
-    ctx.strokeRect(minX, minY, boundWidth, boundHeight);
-    ctx.setLineDash([]); // reset dash
-
-    // Draw Corner Brackets to give a tactical world border
-    const bracketLen = 14;
-    ctx.strokeStyle = "#60a5fa";
-    ctx.lineWidth = 2;
-
-    // Top-Left
-    ctx.beginPath();
-    ctx.moveTo(minX, minY + bracketLen);
-    ctx.lineTo(minX, minY);
-    ctx.lineTo(minX + bracketLen, minY);
-    ctx.stroke();
-
-    // Top-Right
-    ctx.beginPath();
-    ctx.moveTo(maxX - bracketLen, minY);
-    ctx.lineTo(maxX, minY);
-    ctx.lineTo(maxX, minY + bracketLen);
-    ctx.stroke();
-
-    // Bottom-Left
-    ctx.beginPath();
-    ctx.moveTo(minX, maxY - bracketLen);
-    ctx.lineTo(minX, maxY);
-    ctx.lineTo(minX + bracketLen, maxY);
-    ctx.stroke();
-
-    // Bottom-Right
-    ctx.beginPath();
-    ctx.moveTo(maxX - bracketLen, maxY);
-    ctx.lineTo(maxX, maxY);
-    ctx.lineTo(maxX, maxY - bracketLen);
-    ctx.stroke();
-
-    // 4. Draw Audio Proximity Radius (Visual Proximity Awareness)
-    if (showProximityZone) {
-      // Outer translucent fill
-      ctx.beginPath();
-      ctx.arc(position.x, position.y, AUDIO_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle = THEME.proximity.fill;
-      ctx.fill();
-
-      // Outer boundary stroke
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = THEME.proximity.stroke;
-      ctx.stroke();
-
-      // Subtle dashed inner ring
-      ctx.beginPath();
-      ctx.arc(position.x, position.y, AUDIO_RADIUS, 0, Math.PI * 2);
-      ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = THEME.proximity.strokeDashed;
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Proximity range label at bottom edge of radius
-      ctx.fillStyle = "rgba(147, 197, 253, 0.75)";
-      ctx.font = "10px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "top";
-      ctx.fillText(`Voice Range (${AUDIO_RADIUS}u)`, position.x, position.y + AUDIO_RADIUS + 6);
-    }
-
-    // 5. Draw Remote Players (Contract-Ready)
-    remotePlayers.forEach((player) => {
-      const dx = player.x - position.x;
-      const dy = player.y - position.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const isNearby = dist <= AUDIO_RADIUS;
-
-      // Draw proximity connection beam if in audio range
-      if (isNearby) {
-        ctx.beginPath();
-        ctx.moveTo(position.x, position.y);
-        ctx.lineTo(player.x, player.y);
-        ctx.strokeStyle = "rgba(52, 211, 153, 0.35)";
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      // Remote player aura
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, PLAYER_RADIUS * 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = THEME.remotePlayer.glow;
-      ctx.fill();
-
-      // Remote player core
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, PLAYER_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle = THEME.remotePlayer.core;
-      ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = THEME.remotePlayer.ring;
-      ctx.stroke();
-
-      // Remote player name label
-      renderPlayerLabel(
-        ctx,
-        player.x,
-        player.y,
-        player.name || "Remote Player",
-        THEME.remotePlayer.labelBg,
-        THEME.remotePlayer.labelText,
-        THEME.remotePlayer.labelBorder,
-        isNearby ? `${Math.round(dist)}u (Nearby)` : `${Math.round(dist)}u`
-      );
-    });
-
-    // 6. Draw Local Player Avatar
-    // Player outer glow
-    ctx.beginPath();
-    ctx.arc(position.x, position.y, PLAYER_RADIUS * 1.8, 0, Math.PI * 2);
-    ctx.fillStyle = THEME.player.glow;
-    ctx.fill();
-
-    // Player core body
-    ctx.beginPath();
-    ctx.arc(position.x, position.y, PLAYER_RADIUS, 0, Math.PI * 2);
-    ctx.fillStyle = THEME.player.core;
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = THEME.player.ring;
-    ctx.stroke();
-
-    // Direction notch / heading pointer
-    const headingLength = PLAYER_RADIUS + 5;
-    const tipX = position.x + Math.cos(heading) * headingLength;
-    const tipY = position.y + Math.sin(heading) * headingLength;
-    ctx.beginPath();
-    ctx.arc(tipX, tipY, 3, 0, Math.PI * 2);
-    ctx.fillStyle = THEME.player.heading;
-    ctx.fill();
-
-    // 7. Draw Local Player Label
-    renderPlayerLabel(
-      ctx,
-      position.x,
-      position.y,
-      playerName || "You",
-      THEME.player.labelBg,
-      THEME.player.labelText,
-      THEME.player.labelBorder,
-      `X: ${Math.round(position.x)} Y: ${Math.round(position.y)}`
-    );
-
-    ctx.restore();
-  }, [position, heading, playerName, remotePlayers, showProximityZone]);
-
-  return (
-    <div className="canvas-container">
-      <canvas
-        ref={canvasRef}
-        className="world-canvas"
-        style={{
-          width: "100%",
-          aspectRatio: `${WORLD_WIDTH} / ${WORLD_HEIGHT}`
-        }}
-      />
-    </div>
-  );
+export default function WorldCanvas({position,playerName="You",remotePlayers=[],showProximityZone=true}){
+  const canvasRef=useRef(null);
+  useEffect(()=>{
+    const canvas=canvasRef.current;if(!canvas)return;
+    const ctx=canvas.getContext("2d");if(!ctx)return;
+    const dpr=window.devicePixelRatio||1;
+    canvas.width=WORLD_WIDTH*dpr;canvas.height=WORLD_HEIGHT*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,WORLD_WIDTH,WORLD_HEIGHT);
+    const bg=ctx.createLinearGradient(0,0,WORLD_WIDTH,WORLD_HEIGHT);bg.addColorStop(0,"#171613");bg.addColorStop(.5,"#24221d");bg.addColorStop(1,"#0e0e0d");ctx.fillStyle=bg;ctx.fillRect(0,0,WORLD_WIDTH,WORLD_HEIGHT);
+    ctx.fillStyle="#27241f";ctx.fillRect(0,0,WORLD_WIDTH,WORLD_HEIGHT);
+    for(let y=0;y<WORLD_HEIGHT;y+=52){ctx.strokeStyle="rgba(255,255,255,.045)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(WORLD_WIDTH,y);ctx.stroke()}
+    for(let x=0;x<WORLD_WIDTH;x+=52){ctx.strokeStyle="rgba(255,255,255,.035)";ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,WORLD_HEIGHT);ctx.stroke()}
+    room(ctx,45,48,250,150,"LOUNGE");room(ctx,330,38,255,135,"FOCUS");room(ctx,635,45,215,160,"MEETING");room(ctx,70,330,250,125,"SOCIAL");room(ctx,625,325,205,135,"QUIET");
+    wall(ctx,295,30,2,445);wall(ctx,620,30,2,445);wall(ctx,40,235,820,2);wall(ctx,350,38,2,135);wall(ctx,545,38,2,135);
+    sofa(ctx,105,116,105,30);sofa(ctx,685,385,100,30);sofa(ctx,190,360,95,28);
+    table(ctx,180,96,48,28);table(ctx,420,95,70,32);table(ctx,710,115,72,32);table(ctx,445,365,105,40);
+    plant(ctx,65,75);plant(ctx,270,82);plant(ctx,590,84);plant(ctx,825,85);plant(ctx,600,375);plant(ctx,350,405);plant(ctx,835,400);
+    board(ctx,335,66,185,72,"IDEAS / PEOPLE / PROXIMITY");pool(ctx,760,250,72,42);
+    if(showProximityZone){const g=ctx.createRadialGradient(position.x,position.y,12,position.x,position.y,AUDIO_RADIUS);g.addColorStop(0,"rgba(255,48,47,.18)");g.addColorStop(.65,"rgba(255,48,47,.07)");g.addColorStop(1,"rgba(255,48,47,0)");ctx.fillStyle=g;ctx.beginPath();ctx.arc(position.x,position.y,AUDIO_RADIUS,0,Math.PI*2);ctx.fill();ctx.setLineDash([8,6]);ctx.lineWidth=1.5;ctx.strokeStyle=THEME.proximity.stroke;ctx.beginPath();ctx.arc(position.x,position.y,AUDIO_RADIUS,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
+    remotePlayers.forEach(player=>{const dx=player.x-position.x,dy=player.y-position.y,dist=Math.hypot(dx,dy),near=dist<=AUDIO_RADIUS;if(near){ctx.setLineDash([4,6]);ctx.strokeStyle="rgba(53,208,127,.25)";ctx.beginPath();ctx.moveTo(position.x,position.y);ctx.lineTo(player.x,player.y);ctx.stroke();ctx.setLineDash([])}drawAvatar(ctx,player.x,player.y,player.name,THEME.remotePlayer.core,THEME.remotePlayer.ring,false,near?Math.round(dist)+"u nearby":Math.round(dist)+"u")});
+    drawAvatar(ctx,position.x,position.y,playerName,THEME.player.core,THEME.player.ring,true,"YOU");
+  },[position,playerName,remotePlayers,showProximityZone]);
+  return <div className="canvas-container"><canvas ref={canvasRef} className="world-canvas" style={{width:"100%",height:"100%"}}/></div>;
 }
-
-/**
- * Helper to render polished, centered player label pills with coordinates or distance
- */
-function renderPlayerLabel(ctx, x, y, name, bg, textCol, borderCol, subtext) {
-  ctx.font = "bold 12px sans-serif";
-  const nameWidth = ctx.measureText(name).width;
-  ctx.font = "10px sans-serif";
-  const subWidth = subtext ? ctx.measureText(subtext).width : 0;
-
-  const pillWidth = Math.max(nameWidth, subWidth) + 16;
-  const pillHeight = subtext ? 28 : 20;
-  const pillX = x - pillWidth / 2;
-  const pillY = y - PLAYER_RADIUS - pillHeight - 8;
-
-  // Background rounded rectangle
-  ctx.fillStyle = bg;
-  ctx.beginPath();
-  if (ctx.roundRect) {
-    ctx.roundRect(pillX, pillY, pillWidth, pillHeight, 6);
-  } else {
-    ctx.rect(pillX, pillY, pillWidth, pillHeight);
-  }
-  ctx.fill();
-
-  // Border
-  ctx.strokeStyle = borderCol;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  // Name text
-  ctx.textAlign = "center";
-  ctx.fillStyle = textCol;
-  ctx.font = "bold 11px sans-serif";
-  ctx.fillText(name, x, pillY + (subtext ? 11 : 14));
-
-  // Subtext (coordinates or distance)
-  if (subtext) {
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "9px sans-serif";
-    ctx.fillText(subtext, x, pillY + 23);
-  }
-}
+function room(ctx,x,y,w,h,label){ctx.fillStyle="rgba(11,11,10,.28)";ctx.fillRect(x,y,w,h);ctx.strokeStyle="rgba(255,255,255,.10)";ctx.lineWidth=2;ctx.strokeRect(x,y,w,h);ctx.fillStyle="rgba(255,255,255,.36)";ctx.font="700 8px sans-serif";ctx.fillText(label,x+12,y+17)}
+function wall(ctx,x,y,w,h){ctx.fillStyle="rgba(255,255,255,.10)";ctx.fillRect(x,y,w,h)}
+function sofa(ctx,x,y,w,h){ctx.fillStyle="#76201f";ctx.fillRect(x,y,w,h);ctx.fillStyle="#9b2c29";ctx.fillRect(x,y,w,7);ctx.fillStyle="#3a1917";ctx.fillRect(x+5,y+h,w-10,8)}
+function table(ctx,x,y,w,h){ctx.fillStyle="#171512";ctx.fillRect(x,y,w,h);ctx.strokeStyle="rgba(255,255,255,.13)";ctx.strokeRect(x,y,w,h);ctx.fillStyle="rgba(255,200,61,.25)";ctx.beginPath();ctx.arc(x+w/2,y+h/2,4,0,Math.PI*2);ctx.fill()}
+function plant(ctx,x,y){ctx.fillStyle="#273a29";ctx.fillRect(x-5,y+14,10,10);for(let i=0;i<5;i++){ctx.fillStyle=i%2?"#3e6b45":"#567f4b";ctx.beginPath();ctx.ellipse(x+(i-2)*5,y+5-Math.abs(i-2)*2,5,12,(i-2)*.3,0,Math.PI*2);ctx.fill()}}
+function board(ctx,x,y,w,h,text){ctx.fillStyle="#ddd9ca";ctx.fillRect(x,y,w,h);ctx.fillStyle="#161513";ctx.font="700 11px sans-serif";text.split(" / ").forEach((line,i)=>ctx.fillText(line,x+12,y+25+i*15))}
+function pool(ctx,x,y,w,h){ctx.fillStyle="#193b3c";ctx.fillRect(x,y,w,h);ctx.strokeStyle="rgba(110,220,214,.28)";ctx.strokeRect(x,y,w,h)}
+function drawAvatar(ctx,x,y,name,body,ring,local,sub){ctx.save();ctx.shadowColor=local?"rgba(255,48,47,.55)":"rgba(53,208,127,.35)";ctx.shadowBlur=local?18:12;ctx.strokeStyle=ring;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,18,0,Math.PI*2);ctx.stroke();ctx.shadowBlur=0;ctx.globalAlpha=.18;ctx.fillStyle=body;ctx.beginPath();ctx.arc(x,y,27,0,Math.PI*2);ctx.fill();ctx.filter=local?"blur(1.4px)":"blur(.7px)";ctx.fillStyle="#161616";ctx.beginPath();ctx.arc(x,y-9,7,0,Math.PI*2);ctx.fill();ctx.fillStyle=body;ctx.beginPath();ctx.roundRect(x-7,y-3,14,20,6);ctx.fill();ctx.fillStyle="#ddd8cc";ctx.beginPath();ctx.ellipse(x-5,y+17,4,2.5,0,0,Math.PI*2);ctx.ellipse(x+5,y+17,4,2.5,0,0,Math.PI*2);ctx.fill();ctx.restore();label(ctx,x,y-31,name,sub,local)}
+function label(ctx,x,y,name,sub,local){ctx.font="700 11px sans-serif";const nw=ctx.measureText(name).width;ctx.font="9px sans-serif";const sw=ctx.measureText(sub).width;const w=Math.max(nw,sw)+22;ctx.fillStyle="rgba(8,8,7,.84)";ctx.beginPath();ctx.roundRect(x-w/2,y-22,w,34,8);ctx.fill();ctx.strokeStyle=local?"rgba(255,48,47,.4)":"rgba(255,255,255,.12)";ctx.stroke();ctx.textAlign="center";ctx.fillStyle="#f5f4ef";ctx.font="700 11px sans-serif";ctx.fillText(name,x,y-8);ctx.fillStyle=local?"#ff7775":"#8d8d86";ctx.font="9px sans-serif";ctx.fillText(sub,x,y+8)}
