@@ -125,3 +125,19 @@ The joined workspace canvas is now restricted to the area immediately to the rig
 - Camera follow uses exponential delta-time smoothing so the follow response remains consistent across different refresh rates.
 - Internal camera coordinates may remain fractional for smooth interpolation.
 - Final camera translation and avatar/remote-player drawing coordinates are rounded to whole screen pixels to reduce sub-pixel shimmer.
+
+
+## 25. Contained World Viewport — 2026-09-30
+
+The joined workspace world is rendered inside a dedicated rounded viewport container.
+
+- The world container sits to the right of the persistent sidebar.
+- It sits below the top navigation and above the bottom workspace controls.
+- The container uses rounded clipping and `overflow: hidden`.
+- The canvas fills the container rather than the browser window.
+- Camera viewport dimensions are read from the container's `getBoundingClientRect()` and tracked with `ResizeObserver`.
+- Deadzone calculations and camera clamps therefore use the container dimensions.
+- The world remains `1800 × 1100` in absolute coordinates.
+- Camera X/Y remain clamped to the world edges relative to the container viewport.
+- The avatar remains constrained by world/collision bounds and the camera follows it within the container.
+- The initial spawn was moved from `(900,610)` to `(900,700)` because the previous spawn overlapped the central furniture collision rectangle and prevented movement.
