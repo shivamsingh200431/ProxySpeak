@@ -230,17 +230,18 @@ Panels should feel like transparent layers over the world rather than opaque car
 Inspira UI provides Vue/Nuxt-first copyable components, so useful visual patterns are adapted into the React/Vite codebase rather than introducing Vue dependencies. Animate UI follows a copy-first React component model powered by Motion, so its effect patterns are suitable for local adaptation. The official docs describe its Effect primitive around blur, slide, fade, zoom, and in-view behavior. Lenis remains reserved for landing-page smooth scrolling rather than the spatial world itself.
 
 
-## 12. Open-world workspace composition — 2026-09-30
+## 12. Contained workspace composition — 2026-09-30
 
-The latest workspace implementation replaces the contained world card with a full-viewport world surface.
+The latest workspace implementation keeps the world visually dominant while rendering it inside a dedicated contained viewport.
 
-- The Canvas fills the workspace.
-- The scene is framed around the usable area between interface regions.
-- The persistent left navigation and any open right-side contextual panel define invisible avatar-safe lanes.
-- The world may visually continue behind interface glass, but avatars are prevented from entering the local UI lanes.
-- When no right-side panel is open, the playable world can expand toward the right edge.
-- The large in-world product headline is removed; “Your space. Your people.” now sits beside the ProxySpeak logo in the top navigation.
-- The Map panel shows the local red marker plus live green markers for all real remote members.
-- The bottom action island remains content-driven and stays compact around the available controls.
+- The Canvas occupies the rounded world viewport to the right of the persistent sidebar.
+- The viewport sits below the top navigation and above the bottom workspace controls.
+- Rounded clipping and `overflow: hidden` keep the world visually bounded without a thick hard border.
+- The camera uses the actual viewport container dimensions rather than the browser window.
+- The world remains a large 1800 × 1100 coordinate space and the camera follows the local avatar through it.
+- The persistent sidebar and contextual panels remain interface layers; they do not resize or recenter the camera when opened.
+- The large in-world product headline is removed; “Your space. Your people.” remains beside the ProxySpeak logo in the top navigation.
+- The Map panel shows the local red marker plus live green markers for real remote members.
+- The bottom action island remains content-driven and stays compact around controls that actually exist.
 
 This is a workspace presentation/movement rule, not an authoritative multiplayer collision contract.
