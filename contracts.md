@@ -526,3 +526,58 @@ The new UI is a presentation layer over the existing prototype functionality.
 - Tablet collapses secondary controls while preserving the world and core actions.
 - Mobile uses compact navigation and a reduced bottom dock.
 - Panels remain accessible without requiring the user to leave the world.
+
+## 16. World Entry and Functional UI — 2026-09-29
+
+The workspace no longer presents a populated room before the user has entered a world.
+
+### World entry
+
+- The initial `/app` state is a Join a World screen.
+- A user can create a world or join an existing world with an invite code.
+- Creating a world automatically enters the creator into that world.
+- Joining a world places the user into that world's shared presence space.
+- Worlds are currently in-memory server state; persistence is a future milestone.
+
+### World presence
+
+- The server owns world membership for connected users.
+- A world has a unique world ID and invite code.
+- A newly joined user spawns at the defined world spawn position.
+- Existing members receive player-joined when someone enters.
+- Members receive player-moved updates for users in their world.
+- Members receive player-left when someone leaves or disconnects.
+- No fabricated/mock people are displayed.
+- An empty world explicitly communicates that nobody else is present and offers the invite action.
+
+### Functional UI rule
+
+Only controls backed by current functionality should be visible in the active workspace.
+
+Currently functional:
+- Join/Create World
+- Leave World
+- Invite via world invite code and copy action
+- People panel using actual world presence
+- Map panel using the current player position
+- Settings transparency control
+- Movement
+- Visual proximity range
+
+Deferred controls such as microphone capture, WebRTC audio, emotes, video permissions, and other future interaction controls should not be presented as active workspace actions until their underlying functionality exists.
+
+### Visual direction
+
+The supplied ProxySpeak workspace reference is the visual target for the active world:
+
+- translucent dark glass panels;
+- visible world content through the UI;
+- restrained blur and borders;
+- warm architectural world palette;
+- red local-player/proximity language;
+- green active remote presence;
+- yellow proximity/attention;
+- soft-focus local avatar treatment;
+- compact floating labels and controls.
+
+The reference is a design target, not a promise that every visual element shown in the reference is already implemented.
