@@ -78,14 +78,15 @@ function CinematicTransition({ eyebrow, word, title, copy, accent = "red" }) {
 
     const update = () => {
       const rect = node.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const scrollDistance = Math.max(1, rect.height - viewportHeight);
+      const scrollableDistance = Math.max(1, rect.height - window.innerHeight);
 
-      // Finish the cinematic reveal before the sticky section releases.
-      // The remaining scroll distance holds the completed frame on screen,
-      // so the page cannot move into the next section while the reveal is incomplete.
-      const revealDistance = scrollDistance * 0.7;
-      const progress = Math.min(1, Math.max(0, -rect.top / revealDistance));
+      // The cinematic frame owns the viewport while the parent scrolls.
+      // Reveal completes first; the remaining distance is a deliberate hold.
+      const revealDistance = scrollableDistance * 0.65;
+      const progress = Math.min(
+        1,
+        Math.max(0, -rect.top / revealDistance)
+      );
 
       node.style.setProperty("--cinematic-progress", progress.toFixed(4));
       frame = 0;
@@ -114,13 +115,18 @@ function CinematicTransition({ eyebrow, word, title, copy, accent = "red" }) {
     >
       <div className="cinematic-sticky">
         <div className="cinematic-grid" aria-hidden="true" />
+        <div className="cinematic-frame" aria-hidden="true" />
+        <div className="cinematic-word" aria-hidden="true">
+          {word}
+        </div>
+        <div className="cinematic-scan" aria-hidden="true" />
+
         <div className="cinematic-copy">
-          <div className="cinematic-word" aria-hidden="true">{word}</div>
-          <div className="cinematic-scan" aria-hidden="true" />
           <span className="section-kicker">{eyebrow}</span>
           <h2>{title}</h2>
           <p>{copy}</p>
         </div>
+
         <div className="cinematic-meter" aria-hidden="true">
           <span>SCROLL PROGRESS</span>
           <i />
