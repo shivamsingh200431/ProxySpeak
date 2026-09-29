@@ -108,3 +108,20 @@ When the camera reaches a world edge, it stops. The avatar can then continue mov
 - Remote players remain in absolute world coordinates and are rendered only when inside the current camera viewport.
 
 This establishes the map as a genuinely larger navigable world and makes the camera responsible for viewport tracking.
+
+
+## 24. Restricted Workspace Viewport and Delta-Time Rendering — 2026-09-30
+
+The joined workspace canvas is now restricted to the area immediately to the right of the persistent left sidebar.
+
+- The sidebar width plus its layout gap defines the camera viewport's left boundary.
+- The canvas element itself occupies only the remaining right-side area; it no longer renders underneath the sidebar.
+- Camera deadzone percentages are calculated from the actual canvas client width/height, not the browser window dimensions.
+- World-edge camera clamps therefore use the actual visible workspace viewport dimensions.
+
+### Frame-rate independence
+
+- Avatar movement uses real elapsed seconds (`dt`) rather than a frame-count multiplier.
+- Camera follow uses exponential delta-time smoothing so the follow response remains consistent across different refresh rates.
+- Internal camera coordinates may remain fractional for smooth interpolation.
+- Final camera translation and avatar/remote-player drawing coordinates are rounded to whole screen pixels to reduce sub-pixel shimmer.
