@@ -2244,10 +2244,11 @@ body.landing-mode #root {
   position: absolute;
   left: 5vw;
   right: 5vw;
-  top: clamp(72px, 10vh, 110px);
-  bottom: clamp(72px, 10vh, 110px);
+  top: 50%;
+  height: clamp(190px, 25vh, 260px);
   z-index: 3;
   pointer-events: none;
+  transform: translateY(-50%);
   border-top: 1px solid rgba(255,255,255,.08);
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
@@ -2344,12 +2345,15 @@ body.landing-mode #root {
 }
 
 .cinematic-copy {
-  position: relative;
+  position: absolute;
+  left: 50%;
+  top: 50%;
   z-index: 4;
   width: min(920px, 84vw);
   max-height: 72vh;
   text-align: center;
   transform:
+    translate(-50%, -50%)
     translateY(calc((1 - var(--cinematic-progress)) * 70px))
     scale(calc(.92 + var(--cinematic-progress) * .08));
   opacity: calc(var(--cinematic-progress) * 1.35);
@@ -2437,8 +2441,9 @@ body.landing-mode #root {
   .cinematic-sticky::after {
     left: 20px;
     right: 20px;
-    top: 64px;
-    bottom: 64px;
+    top: 50%;
+    height: 230px;
+    transform: translateY(-50%);
   }
 
   .cinematic-word {
