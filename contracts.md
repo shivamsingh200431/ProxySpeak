@@ -34,7 +34,7 @@ The prototype collision layer now follows the visible six-room SVG architecture 
 - The top and bottom room rows connect through the three vertical corridors.
 - Rooms in each row connect through the horizontal corridors.
 - Furniture remains solid and blocks avatar movement.
-- Collision uses the same 900 × 520 coordinate system as the world artwork.
+- Collision uses the same 1800 × 1100 coordinate system as the world artwork.
 
 ### Movement expectation
 
@@ -67,9 +67,9 @@ The visual reference is the **connected-room traversal structure** of social mul
 ### Runtime changes
 
 - Server-authoritative world bounds are now 1800 × 1100 with 60px boundary padding.
-- Client spawn position is 900, 610.
+- Client spawn position is 900, 700.
 - Visual proximity radius is increased from 90u to 160u to remain meaningful at the larger map scale.
-- Movement speed is increased from 3.5 to 4.2 pixels/frame to keep traversal responsive across the larger space.
+- Movement speed is 252 world units/second, equivalent to roughly 4.2 pixels/frame at 60Hz while remaining frame-rate independent.
 - Collision remains client-side movement/presentation logic; the server still owns shared player position state.
 
 This is still a prototype layout. The next map-art iteration can replace the SVG with a proper Tiled-authored map while preserving the movement and multiplayer contracts. Tiled's JSON map format supports tile layers and object layers, including positioned objects that can carry collision-related data.
