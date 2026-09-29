@@ -3,23 +3,23 @@
  * Keeps geometry, physics limits, and visual design values centralized.
  */
 
-export const WORLD_WIDTH = 900;
-export const WORLD_HEIGHT = 520;
+export const WORLD_WIDTH = 1800;
+export const WORLD_HEIGHT = 1100;
 
 export const SPAWN_POSITION = {
-  x: 450,
-  y: 260
+  x: 900,
+  y: 610
 };
 
 export const PLAYER_RADIUS = 14;
 
 // Planned proximity threshold documented in contracts.md.
 // This is currently used for visual feedback only.
-export const AUDIO_RADIUS = 90;
-export const BOUNDARY_PADDING = 24;
+export const AUDIO_RADIUS = 160;
+export const BOUNDARY_PADDING = 60;
 
 // Movement speed in pixels per frame when using continuous key tracking loop
-export const MOVE_SPEED = 3.5;
+export const MOVE_SPEED = 4.2;
 
 export const THEME = {
   bg: "#121211",
