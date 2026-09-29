@@ -652,3 +652,49 @@ The center glass dock is content-driven.
 - Inspira UI is Vue/Nuxt-first, so its copy-first visual patterns are adapted rather than installed as a direct React dependency.
 - Animate UI is also copy-first rather than a conventional runtime library; its blur/fade/slide interaction principles are adapted into the workspace panel behavior.
 - Lenis remains the landing-page smooth-scroll system. The active workspace is intentionally viewport-based and does not add Lenis scrolling to the world surface, because smooth scrolling would conflict with the spatial application's direct manipulation model.
+
+## 18. Open World Workspace and UI-Safe Movement — 2026-09-30
+
+The active workspace now treats the virtual world as a full-viewport surface rather than a contained card.
+
+### World viewport
+
+- The Canvas occupies the full workspace viewport.
+- The world uses a cover-style camera transform so the environment can extend beyond the visible screen like an open world.
+- Important spatial content is framed around the usable area between persistent interface regions.
+- The world has no heavy rectangular container boundary.
+
+### UI-safe movement
+
+The workspace UI is an overlay, not part of the world geometry.
+
+- A responsive invisible movement wall protects the persistent left navigation area.
+- When a contextual right-side panel is open, a second invisible wall protects that panel.
+- The playable area expands toward the right when no right-side panel is open.
+- The local avatar is clamped against these UI-safe lanes.
+- Remote avatars that fall inside a local UI-obstructed lane are not drawn underneath that overlay.
+- These UI-safe walls are client presentation/movement constraints; they are not authoritative server-world boundaries.
+
+### Map presence
+
+The Map panel now renders:
+
+- the local user's red position;
+- every server-sourced remote member as a green position;
+- live position updates as player-moved events arrive.
+
+No fabricated map participants are introduced.
+
+### Workspace identity
+
+The large in-world “Your space. Your people.” message is removed from the Canvas overlay and is represented as compact product copy beside the ProxySpeak logo in the persistent top bar.
+
+### Action dock
+
+The bottom action dock is sized from its actual action count.
+
+- Two actions produce a compact two-button dock.
+- A third People action appears only when another real member is present.
+- The dock does not reserve unused space for unavailable actions.
+
+This section changes workspace presentation and client interaction only. It does not change authoritative world membership, server movement limits, proximity behavior, or WebRTC signaling.
