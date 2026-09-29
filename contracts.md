@@ -1,143 +1,529 @@
+# ProxySpeak Technical Contracts
+
+This document defines the technical contracts, system boundaries, and behavioral expectations for ProxySpeak.
+
+> Update this document whenever a public interface, shared data structure, or significant architectural behavior changes.
+
+## 1. Project Overview
+
+ProxySpeak is a browser-based, real-time proximity audio environment. Users occupy positions in a shared virtual world and will eventually communicate with nearby users through spatially-aware voice communication.
+
+Development is incremental. The real-time movement and presence layer must be established before peer-to-peer audio and persistence are introduced.
+
+## 2. Repository and Architecture
+
+| Item | Value |
+| --- | --- |
+| Repository | `shivamsingh200431/ProxySpeak` |
+| Default branch | `main` |
+| Repository type | Single monorepo |
+| Frontend directory | `client` |
+| Backend directory | `server` |
+| Documentation directory | `docs` |
+
+### High-level architecture
+
+```text
+┌──────────────────────┐
+│    Browser Client    │
+│ React + Canvas       │
+└──────────┬───────────┘
+           │ HTTP / Socket.io
+           ▼
+┌──────────────────────┐
+│ Node.js + Express    │
+│ Real-time server     │
+└──────────┬───────────┘
+           ├── Shared world state
+           ├── Player presence
+           ├── Movement validation
+           ├── WebRTC signaling
+           └── Future persistence layer
+```
+
+## 3. Technology Stack
+
+### Current stack
+
+- React
+- Vite
+- JavaScript
+- HTML5 Canvas
+- Node.js
+- Express
+- Socket.io
+- Socket.io Client
+
+### Planned stack
+
+- **MongoDB** — persistence and geospatial queries
+- **WebRTC** — peer-to-peer audio
+- **Web Audio API** — distance-based audio processing
+- **Redis** — only if required by scaling or deployment needs
+
+## 4. Repository Structure
+
+```text
+ProxySpeak/
+├── client/
+│   ├── src/
+│   │   ├── socket/
+│   │   ├── App.jsx
+│   │   └── main.jsx
+│   ├── index.html
+│   ├── package.json
+│   └── vite.config.js
+├── server/
+│   ├── src/
+│   ├── package.json
+│   └── .env.example
+├── docs/
+├── contracts.md
+├── README.md
+├── package.json
+└── .gitignore
+```
+
+## 5. Development Environment
+
+### Frontend
+
+- Development server: Vite
+- URL: `http://localhost:5173`
+- Socket server URL: `VITE_SERVER_URL` when provided, otherwise `http://localhost:5000`
+
+### Backend
+
+- Development server: Node.js/Express
+- URL: `http://localhost:5000`
+
+### Health endpoint
+
+```http
+GET /health
+```
+
+Expected response:
+
+```json
+{
+  "status": "ok",
+  "service": "proxyspeak-server"
+}
+```
+
+## 6. Current Functional Baseline
+
+The following baseline has been implemented and locally verified:
+
+- The monorepo installs successfully using npm.
+- Frontend and backend can be started together.
+- The React interface renders successfully.
+- The Canvas world is visible.
+- A local player can be moved using keyboard controls.
+- The backend health endpoint responds successfully.
+- The initial project has been committed to `main` and pushed to GitHub.
+
+## 7. Real-Time World Model
+
+The planned shared world contains connected players.
+
+Each player will have, at minimum:
+
+```ts
+{
+  id: string,
+  x: number,
+  y: number
+}
+```
+
+Additional fields may be introduced when required, but the initial movement model should remain minimal.
+
+The server is responsible for maintaining authoritative shared player state.
+
+### Current frontend movement prototype
+
+The current frontend movement implementation is a local visual prototype. It updates the local Canvas position using keyboard input, but it does not synchronize coordinates with the server or other clients.
+
+Position synchronization, remote-player state, and authoritative movement validation remain Week 2 work.
+
+## 8. Socket.io Event Contract
+
+Finalized for the connection/join/leave layer (Milestone 2, Week 1). Movement and full presence-list events will be appended here in Week 2 once the player registry (shared world state) lands.
+
+### Client → Server
+
+| Event | Payload | Notes |
+| --- | --- | --- |
+| `join-world` | `{ name: string }` | 1–20 chars after trim, required. Rejected if the connection already joined. |
+| `leave-world` | *(none)* | Explicit, intentional leave. Distinct from a network disconnect. |
+
+### Server → Client
+
+| Event | Payload | Sent to |
+| --- | --- | --- |
+| `world-joined` | `{ playerId: string, name: string }` | Sender only — successful join acknowledgement. `playerId` is a server-generated 6-character public player identifier. The internal Socket.io ID is never exposed through this contract. |
+| `player-joined` | `{ playerId: string, name: string }` | Everyone except sender. |
+| `player-left` | `{ playerId: string }` | Everyone, for explicit leave and disconnect cleanup. |
+| `join-error` | `{ code: string, message: string }` | Sender only. Codes: `INVALID_PAYLOAD`, `INVALID_NAME`, `ALREADY_JOINED`. |
+
+### Built-in Socket.io lifecycle
+
+- `connection` — fires when the client establishes a Socket.io connection.
+- `disconnect` — fires when the client loses or closes the connection.
+
+### Client connection behavior
+
+- The client does not connect automatically on page load.
+- The user enters a display name and selects **Join World**.
+- The client trims the name and rejects empty names or names longer than 20 characters before opening the socket connection.
+- After `connect`, the client emits `join-world` with the display name.
+- A successful `world-joined` response stores the server-generated 6-character `playerId` as the local display ID. The internal Socket.io connection ID remains server-only.
+- Player IDs use uppercase letters and digits, excluding visually ambiguous characters such as `I`, `O`, `0`, and `1`.
+- Week 1 uses one implicit shared world; a separate `worldId` is intentionally not defined yet.
+- A future multi-world model will introduce an explicit world identifier as part of the authoritative world registry.
+- `join-error` is shown to the user and the socket is disconnected.
+- **Leave World** emits `leave-world` before closing the socket.
+- The client uses `VITE_SERVER_URL` when configured and defaults to `http://localhost:5000`.
+
+### Scope boundary
+
+Week 1 establishes connection and join/leave behavior. Position synchronization, remote-player state, and the authoritative player registry are Week 2 work.
+
+## 9. Server Authority
+
+The server is authoritative for shared world state.
+
+Clients may send movement updates or movement intentions, but the server must:
+
+- Validate incoming data
+- Maintain player positions
+- Broadcast accepted state
+- Remove disconnected players
+- Prevent malformed updates from affecting other clients
+
+## 10. Audio Architecture
+
+Audio will be introduced only after movement and presence synchronization are stable.
+
+### Proximity design decision
+
+The initial planned proximity threshold is **90 world units**.
+
+This value is currently used by the frontend only as a visual radius/prototype. It does not yet establish an active voice connection, server-side proximity filtering, or WebRTC behavior.
+
+When the proximity system is implemented, the server/client contract will define how distance is calculated and how entering/leaving the threshold affects nearby-player state.
+
+Expected flow:
+
+```text
+Player Position
+      │
+      ▼
+Proximity Calculation
+      │
+      ▼
+Nearby Player Filtering
+      │
+      ▼
+WebRTC Signaling
+      │
+      ▼
+Peer-to-Peer Audio
+      │
+      ▼
+Web Audio API Distance Attenuation
+```
+
+The first audio implementation should prioritize reliable connections, understandable states, and graceful failure handling over advanced effects.
+
+## 11. Implementation Milestones
+
+### Milestone 1 — Foundation
+
+- Monorepo setup
+- Frontend setup
+- Backend setup
+- Canvas prototype
+- Basic movement
+- Health endpoint
+- Local verification
+- Initial GitHub push
+
+### Milestone 2 — Real-Time Multiplayer
+
+- Install Socket.io dependencies
+- Establish client-server connection
+- Assign player IDs
+- Define event payloads
+- Synchronize player positions
+- Render remote players
+- Handle joins and disconnects
+
+### Milestone 3 — Proximity System
+
+- Define world coordinate rules
+- Calculate player distance
+- Identify nearby players
+- Apply the 90-unit proximity threshold
+- Handle entering and leaving proximity range
+
+### Milestone 4 — Voice Communication
+
+- Add WebRTC signaling
+- Request microphone access
+- Establish peer connections
+- Handle connection failures
+- Add mute controls
+- Add distance-based attenuation
+
+### Milestone 5 — Persistence and Deployment
+
+- Add MongoDB where persistence is required
+- Add authentication if required
+- Configure environment variables
+- Add production builds
+- Deploy frontend and backend
+- Add monitoring and error handling
+
+## 12. Engineering Guidelines
+
+- Keep frontend rendering separate from networking logic.
+- Keep server state management separate from HTTP route definitions.
+- Validate all data received from clients.
+- Avoid introducing infrastructure before it is needed.
+- Prefer explicit event names and documented payloads.
+- Keep shared contracts backward-compatible where practical.
+- Use environment variables for deployment-specific configuration.
+- Verify each milestone locally before moving to the next one.
 
 
-## 20. Stable World Camera with UI-Safe Avatar Bounds — 2026-09-30
+## 13. UI/UX and Product Experience Direction
 
-The workspace world camera and avatar movement bounds are now intentionally decoupled.
+The UI is intentionally split into two product experiences:
 
-### Camera behavior
+1. **Landing page** — public product introduction and explanation of proximity-based communication.
+2. **Application** — the actual shared virtual environment.
 
-- The world Canvas always computes its visual scale and offset from the full viewport.
-- Opening Settings, People, Map, or Invite must not recenter, resize, or expose an empty/black region in the world.
-- World elements remain visible behind glass panels, including areas where avatars are not allowed to walk.
+### Product identity
 
-### UI-safe movement behavior
+ProxySpeak should feel like:
 
-- Persistent UI and the currently open contextual panel still define invisible screen-space movement lanes.
-- These lanes are converted into world coordinates using the stable full-viewport camera transform.
-- The local avatar is prevented from entering those lanes.
-- The restriction applies to avatar movement only; it does not hide or crop the underlying world.
+> **Corporate collaboration + virtual world + subtle game mechanics**
 
-This preserves the intended spatial-world behavior: **the world continues behind the interface, while the avatar stays out of the interface's interaction space.**
+The application should be gamified without being presented as a conventional video game. It should use professional virtual-office environments and useful game-like interaction cues such as presence, proximity, speaking states, movement, room occupancy, navigation, and optional badges/achievements.
 
-This is a client presentation/movement change only and does not alter server-authoritative world bounds or Socket.io contracts.
+The design should avoid a generic AI-dashboard aesthetic and unnecessary decorative effects.
+
+### Landing page direction
+
+The landing page should explain the core product through a simple proximity story:
+
+1. Move closer to someone.
+2. Enter their proximity range.
+3. Hear/talk to nearby people.
+4. Walk away and the audio relationship fades.
+
+Planned sections:
+
+- Hero
+- How ProxySpeak works
+- Proximity voice demonstration
+- Virtual office/product showcase
+- Feature overview
+- Final call to action
+- Entry into the application
+
+### Application UI direction
+
+The application should use a professional virtual-office visual language with subtle game mechanics.
+
+Use **people** rather than calling users "players" in user-facing UI.
+
+Core UI concepts include:
+
+- People/presence indicators
+- Proximity visualization
+- Speaking indicators
+- Voice state controls
+- Room occupancy
+- Movement controls
+- Map/navigation
+- World HUD
+- Meeting/room interfaces
+- Optional badges or achievements where they add product value
+
+Development-only labels such as "Mock", "Simulate Permission", or "Visual Only" may be used while features are being implemented, but they are not intended to remain in the finished product UI.
+
+### Visual design system
+
+The primary visual direction is a dark corporate foundation with vibrant red branding and restrained supporting colors.
+
+| Role | Direction |
+| --- | --- |
+| Background | Near-black |
+| Surface | Very dark charcoal |
+| Primary text | Warm white |
+| Secondary text | Cool/light gray |
+| Brand/action | Vibrant red |
+| Attention/proximity | Warm yellow |
+| Connected/active | Green |
+| Secondary accent | Orange |
+
+Red is the primary brand/action color.
+
+Yellow is primarily for proximity, attention, and interaction states.
+
+Green communicates connected/active states.
+
+Black and white provide the corporate foundation.
+
+Purple is not a primary ProxySpeak brand color. Existing purple components should be recolored or restyled when incorporated into ProxySpeak.
+
+### Typography
+
+The current design direction uses **Atkinson Hyperlegible** for headings and body text.
+
+The existing scale is based on a 16px root:
+
+- `sm`: 0.750rem
+- `base`: 1rem
+- `xl`: 1.333rem
+- `2xl`: 1.777rem
+- `3xl`: 2.369rem
+- `4xl`: 3.158rem
+- `5xl`: 4.210rem
+
+Weights:
+
+- Normal: 400
+- Bold: 700
+
+### Animation and component strategy
+
+Animation should communicate hierarchy, state, navigation, and social/physical presence rather than exist only for visual spectacle.
+
+Preferred responsibilities:
+
+- **Lenis** — smooth scrolling for the landing page, including anchor navigation and tuned wheel/touch behavior.
+- **Motion / Animate UI patterns** — Motion-powered React entrance effects, spring interactions, hover/tap feedback, and reusable reveal patterns inspired by Animate UI. Animate UI is a copy-first component distribution, so only selected patterns should be adapted rather than adding a large UI dependency surface.
+- **Canvas** — actual virtual-world rendering.
+- Additional animation systems should only be introduced when a concrete interaction requires them.
+
+**Inspira UI** is a design and interaction reference only. It is a Vue/Nuxt project and is not a direct dependency of the React/Vite client.
+
+The intended result is a polished interface without unnecessary particles, glowing blobs, excessive gradients, cursor trails, or animation layers that compete with the product.
+
+### Library boundaries
+
+| Resource | ProxySpeak role |
+| --- | --- |
+| Lenis | Landing-page smooth scrolling |
+| Animate UI | React UI components and motion patterns, adapted to ProxySpeak styling |
+| Inspira UI | Visual/interaction reference; no direct Vue/Nuxt dependency |
+| Custom Canvas/UI | Virtual-world experience and product-specific interactions |
+
+The virtual-world UI remains custom and should be designed around ProxySpeak's actual behavior.
+
+### Scope boundary
+
+This section defines visual and UX direction. It does not change the real-time networking, movement, proximity, or WebRTC contracts.
+
+The detailed visual guidance is documented in `docs/ui-design-direction.md`.
+
+Future UI changes that introduce a new shared interaction or materially change product behavior should update this contract as well.
 
 
-## 21. Room and Corridor Collision Alignment — 2026-09-30
+## 14. Landing Page Revamp — 2026-09-29
 
-The prototype collision layer now follows the visible six-room SVG architecture instead of only blocking furniture.
+The landing page has been rebuilt around a product-first editorial flow. The previous oversized cinematic/sticky transition sections are removed because they created excessive empty scroll space and made the content leave the viewport before the intended reveal completed.
 
-### Collision behavior
+### Landing page structure
 
-- Outer world boundaries block the avatar from leaving the world.
-- Each room's visible walls are represented by collision segments.
-- Door/corridor openings remain traversable.
-- The top and bottom room rows connect through the three vertical corridors.
-- Rooms in each row connect through the horizontal corridors.
-- Furniture remains solid and blocks avatar movement.
-- Collision uses the same 1800 × 1100 coordinate system as the world artwork.
+The public page now uses normal document flow with these sections:
 
-### Movement expectation
+1. Hero — product promise and virtual-office preview
+2. Idea — why proximity changes collaboration
+3. The Loop — move, arrive, talk, leave
+4. Proximity Lab — interactive distance/audio-state demonstration
+5. Workspace — virtual-office model and product concepts
+6. System — real-time, proximity, WebRTC, and Web Audio architecture
+7. Final CTA — entry into the application
 
-The avatar should be able to traverse the workspace through the visible corridors and door openings while being blocked by walls and furniture.
+### Interaction and animation behavior
 
-Collision remains client-side movement/presentation logic. The server continues to own authoritative multiplayer position state and world bounds.
+- Lenis remains responsible for smooth landing-page scrolling and anchor navigation.
+- Motion provides in-view reveals, subtle hover/tap feedback, and spring-like CTA interaction.
+- MotionConfig with reducedMotion="user" is used so Motion respects the user's reduced-motion preference.
+- Interactive product demonstrations use local React state only and do not imply that unfinished backend/WebRTC functionality is already active.
+- No landing-page section relies on a long sticky viewport lock or a scroll-driven cinematic reveal.
+- Decorative motion must remain subordinate to product meaning: presence, proximity, navigation, state, and spatial context.
 
-This is a prototype alignment layer. When the world is migrated to Tiled, these hand-authored rectangles should be replaced by collision objects from the map.
+### Proximity Lab presentation contract
 
+The Proximity Lab is explicitly a presentation-only simulation until the real proximity/audio milestones are implemented.
 
-## 22. Expanded Traversable Workspace Map — 2026-09-30
+- Distance is displayed in world units.
+- The current planned proximity threshold remains 90 world units.
+- The slider changes presentation state only.
+- Conversation, Nearby, and Out of range are visual labels for the demo and are not network/audio states.
+- No microphone access, WebRTC connection, server-side proximity filtering, or real audio processing is triggered by the landing page.
 
-The prototype workspace is now intentionally a large connected map rather than a compact six-room demo.
+### Landing page visual boundary
+
+The landing page continues to use the dark corporate foundation, red brand/action color, yellow proximity/attention color, green active state, and Atkinson Hyperlegible typography defined in Section 13.
+
+The landing page should prefer restrained grids, frames, product diagrams, and purposeful transitions over particles, glowing blobs, excessive gradients, cursor trails, or oversized cinematic effects.
+
+## 15. Workspace Map and Movement — 2026-09-30
+
+The workspace prototype now uses a large connected map with server-authoritative world bounds and client-side collision/presentation.
 
 ### World geometry
 
-- World coordinate space is expanded from 900 × 520 to **1800 × 1100**.
-- The layout uses nine rooms across three horizontal bands: Lounge, Focus, Meeting, Social, Commons, Quiet, Work, Lab, and Archive.
-- Wide horizontal and vertical corridors connect the rooms into one traversable network.
-- The central Commons area is the default spawn and social anchor.
-- Room walls and corridor openings are authored in the same coordinate space as the SVG so collision and rendering stay aligned.
-- Furniture remains solid but does not seal the main routes.
+- World coordinate space is **1800 × 1100**.
+- The prototype contains nine connected rooms: Lounge, Focus, Meeting, Social, Commons, Quiet, Work, Lab, and Archive.
+- Horizontal and vertical corridors provide traversable routes between rooms.
+- The central Commons area is the default spawn/social anchor.
+- The SVG artwork and collision layer use the same 1800 × 1100 coordinate system.
+- Furniture remains solid without sealing the primary routes.
 
-### Traversal intent
+### Runtime movement
 
-The avatar should have meaningful travel distance between rooms, with multiple routes through the workspace instead of being confined to one compact cluster.
+- Server-authoritative world bounds use 60u boundary padding.
+- Client and server spawn at `(900,700)`.
+- Movement speed is **252 world units/second**, using elapsed time rather than a frame-count multiplier.
+- The visual proximity radius is **160u** in the workspace prototype.
+- Collision is currently client-side presentation/movement logic; the server remains authoritative for shared player positions and world bounds.
+- The SVG is a prototype map representation and may later be replaced by a Tiled-authored map while preserving the movement/network contracts.
 
-The visual reference is the **connected-room traversal structure** of social multiplayer maps; ProxySpeak keeps its own corporate workspace identity and does not copy another game's map or art.
+## 16. Workspace Camera and Viewport — 2026-09-30
 
-### Runtime changes
+The workspace world is rendered inside a dedicated contained viewport.
 
-- Server-authoritative world bounds are now 1800 × 1100 with 60px boundary padding.
-- Client spawn position is 900, 700.
-- Visual proximity radius is increased from 90u to 160u to remain meaningful at the larger map scale.
-- Movement speed is 252 world units/second, equivalent to roughly 4.2 pixels/frame at 60Hz while remaining frame-rate independent.
-- Collision remains client-side movement/presentation logic; the server still owns shared player position state.
-
-This is still a prototype layout. The next map-art iteration can replace the SVG with a proper Tiled-authored map while preserving the movement and multiplayer contracts. Tiled's JSON map format supports tile layers and object layers, including positioned objects that can carry collision-related data.
-
-
-## 23. Player-Follow Camera with Deadzone and World-Edge Clamping — 2026-09-30
-
-The workspace now uses a camera that views a portion of the larger world instead of fitting the complete map into the viewport.
-
-### Camera model
-
-- Player coordinates remain absolute world coordinates.
-- The camera has its own world-space X/Y position.
-- Screen position is derived as:
-  - `screenX = playerX - cameraX`
-  - `screenY = playerY - cameraY`
-- The camera uses a deadzone occupying approximately 30%–70% of the viewport on both axes.
-- The player can move freely inside that deadzone without moving the map.
-- When the player crosses a deadzone edge, the camera follows by translating the world in the opposite direction.
-- Camera movement is smoothed with interpolation so following is not visually abrupt.
-
-### Camera clamping
-
-The camera is clamped to:
-
-- `0 <= cameraX <= WORLD_WIDTH - viewportWidth`
-- `0 <= cameraY <= WORLD_HEIGHT - viewportHeight`
-
-When the camera reaches a world edge, it stops. The avatar can then continue moving toward the corresponding physical edge of the world/viewport.
-
-### Movement relationship
-
-- Avatar movement is constrained by world/collision bounds, not by UI panels.
-- Opening Settings, People, Map, or Invite does not change the player's movement bounds or camera coordinate system.
-- Rendering translates the world by `-cameraX, -cameraY`.
-- Remote players remain in absolute world coordinates and are rendered only when inside the current camera viewport.
-
-This establishes the map as a genuinely larger navigable world and makes the camera responsible for viewport tracking.
-
-
-## 24. Restricted Workspace Viewport and Delta-Time Rendering — 2026-09-30
-
-The joined workspace canvas is now restricted to the area immediately to the right of the persistent left sidebar.
-
-- The sidebar width plus its layout gap defines the camera viewport's left boundary.
-- The canvas element itself occupies only the remaining right-side area; it no longer renders underneath the sidebar.
-- Camera deadzone percentages are calculated from the actual canvas client width/height, not the browser window dimensions.
-- World-edge camera clamps therefore use the actual visible workspace viewport dimensions.
-
-### Frame-rate independence
-
-- Avatar movement uses real elapsed seconds (`dt`) rather than a frame-count multiplier.
-- Camera follow uses exponential delta-time smoothing so the follow response remains consistent across different refresh rates.
-- Internal camera coordinates may remain fractional for smooth interpolation.
-- Final camera translation and avatar/remote-player drawing coordinates are rounded to whole screen pixels to reduce sub-pixel shimmer.
-
-
-## 25. Contained World Viewport — 2026-09-30
-
-The joined workspace world is rendered inside a dedicated rounded viewport container.
-
-- The world container sits to the right of the persistent sidebar.
+- The joined world container sits to the right of the persistent sidebar.
 - It sits below the top navigation and above the bottom workspace controls.
 - The container uses rounded clipping and `overflow: hidden`.
-- The canvas fills the container rather than the browser window.
-- Camera viewport dimensions are read from the container's `getBoundingClientRect()` and tracked with `ResizeObserver`.
-- Deadzone calculations and camera clamps therefore use the container dimensions.
-- The world remains `1800 × 1100` in absolute coordinates.
-- Camera X/Y remain clamped to the world edges relative to the container viewport.
-- The avatar remains constrained by world/collision bounds and the camera follows it within the container.
-- The initial spawn was moved from `(900,610)` to `(900,700)` because the previous spawn overlapped the central furniture collision rectangle and prevented movement.
+- The Canvas fills the container rather than the browser window.
+- Camera viewport dimensions come from the container's `getBoundingClientRect()` and are tracked with `ResizeObserver`.
+- The player-follow camera uses an approximately 30%–70% deadzone and smooth exponential follow.
+- Camera X/Y are clamped to the world edges relative to the actual container viewport dimensions.
+- Final camera/avatar rendering coordinates are rounded to whole screen pixels to reduce shimmer.
+- Opening Settings, People, Map, or Invite does not recenter or resize the camera.
+- UI panels are presentation layers; avatar movement remains constrained by world/collision rules rather than by panel geometry.
+
+This is a client presentation/movement contract and does not change server-authoritative Socket.io payloads.
+
+## 17. Workspace UI Behavior — 2026-09-30
+
+The workspace UI follows the supplied reference direction.
+
+- Before joining a world, the user sees **Join a World** and no fabricated remote people.
+- After joining, only the local user and server-sourced remote members are rendered.
+- Floating Settings, People, Map, and Invite panels close when the user clicks outside them.
+- Clicking the currently active panel trigger toggles that panel closed.
+- The bottom action dock is content-driven: controls appear only when their underlying behavior exists.
+- The microphone control requests local microphone permission and toggles local track state; it does **not** yet establish peer WebRTC audio.
+- The world and avatars use the current stickman visual language.
+- The workspace world remains visually calm and contained within its rounded viewport while glass UI overlays provide context.
