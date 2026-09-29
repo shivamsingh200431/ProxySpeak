@@ -4,7 +4,7 @@ import { validateJoinWorldPayload } from "./validators.js";
 const PLAYER_ID_LENGTH = 6;
 const WORLD_CODE_LENGTH = 6;
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const SPAWN_POSITION = { x: 900, y: 610 };
+const SPAWN_POSITION = { x: 900, y: 700 };
 const WORLD_WIDTH = 1800;
 const WORLD_HEIGHT = 1100;
 const BOUNDARY_PADDING = 60;
