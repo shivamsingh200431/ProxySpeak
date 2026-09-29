@@ -199,3 +199,32 @@ The supplied ProxySpeak workspace reference image is the visual target for the a
 The reference is not a requirement to render static people or inactive controls. Product behavior takes precedence: before entering a world, show Join a World; after entering, render only the current user and actual server-sourced members; expose controls only when their underlying behavior exists.
 
 The interface should use translucent dark glass surfaces with adjustable transparency, visible world content beneath panels, restrained blur, compact borders, warm spatial lighting, and a soft-focus local avatar. The world itself should remain the primary visual surface rather than being hidden behind opaque UI.
+
+
+## 11. Workspace refinement from supplied screenshots
+
+The latest supplied screenshots are the active visual reference for the workspace.
+
+### Spatial composition
+
+- Keep the world visually dominant but contained enough that the viewer can understand where the environment ends.
+- Avoid a full-viewport cropped world that makes the scene feel endless.
+- Use a subtle perimeter/vignette rather than a thick hard boundary.
+- Keep the world architecture calmer than the interface so the eye can identify the interactive layer.
+
+### People
+
+Stickman-style people are now the preferred avatar language. The figure should remain crisp at normal viewing size, with color rings and compact labels carrying state.
+
+### Glass interaction
+
+Panels should feel like transparent layers over the world rather than opaque cards pasted on top.
+
+- Close floating panels when the user clicks outside.
+- Clicking an active toolbar control toggles its panel closed.
+- Responsive panels must reduce width and height as the viewport shrinks.
+- Motion should be short, purposeful, and based on blur/fade/slide patterns.
+
+### Reference libraries
+
+Inspira UI provides Vue/Nuxt-first copyable components, so useful visual patterns are adapted into the React/Vite codebase rather than introducing Vue dependencies. Animate UI follows a copy-first React component model powered by Motion, so its effect patterns are suitable for local adaptation. The official docs describe its Effect primitive around blur, slide, fade, zoom, and in-view behavior. Lenis remains reserved for landing-page smooth scrolling rather than the spatial world itself.
