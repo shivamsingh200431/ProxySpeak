@@ -188,6 +188,11 @@ export default function WorldCanvas({
 }
 
 function drawWorld(ctx, art, position, playerName, remotePlayers, showProximityZone, viewport) {
+  const localDrawPosition = {
+    x: Math.round(position.x),
+    y: Math.round(position.y)
+  };
+
   if (art?.complete && art.naturalWidth > 0) {
     ctx.drawImage(art, 0, 0, WORLD_WIDTH, WORLD_HEIGHT);
   } else {
@@ -196,13 +201,13 @@ function drawWorld(ctx, art, position, playerName, remotePlayers, showProximityZ
   }
 
   if (showProximityZone) {
-    const gradient = ctx.createRadialGradient(position.x, position.y, 8, position.x, position.y, AUDIO_RADIUS);
+    const gradient = ctx.createRadialGradient(localDrawPosition.x, localDrawPosition.y, 8, localDrawPosition.x, localDrawPosition.y, AUDIO_RADIUS);
     gradient.addColorStop(0, "rgba(255,48,47,.18)");
     gradient.addColorStop(.65, "rgba(255,48,47,.055)");
     gradient.addColorStop(1, "rgba(255,48,47,0)");
     ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.arc(position.x, position.y, AUDIO_RADIUS, 0, Math.PI * 2);
+    ctx.arc(localDrawPosition.x, localDrawPosition.y, AUDIO_RADIUS, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.setLineDash([7, 7]);
@@ -215,6 +220,10 @@ function drawWorld(ctx, art, position, playerName, remotePlayers, showProximityZ
   }
 
   remotePlayers.forEach(player => {
+    const drawPosition = {
+      x: Math.round(player.x),
+      y: Math.round(player.y)
+    };
     const visible = player.x >= viewport.minX && player.x <= viewport.maxX &&
       player.y >= viewport.minY && player.y <= viewport.maxY;
     if (!visible) return;
@@ -233,11 +242,11 @@ function drawWorld(ctx, art, position, playerName, remotePlayers, showProximityZ
       ctx.setLineDash([]);
     }
 
-    drawStickman(ctx, player.x, player.y, player.name, false,
+    drawStickman(ctx, drawPosition.x, drawPosition.y, player.name, false,
       near ? Math.round(distance) + "u nearby" : Math.round(distance) + "u");
   });
 
-  drawStickman(ctx, position.x, position.y, playerName, true, "YOU");
+  drawStickman(ctx, localDrawPosition.x, localDrawPosition.y, playerName, true, "YOU");
 }
 
 function drawStickman(ctx, x, y, name, local, sub) {
