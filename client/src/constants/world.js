@@ -8,7 +8,7 @@ export const WORLD_HEIGHT = 1100;
 
 export const SPAWN_POSITION = {
   x: 900,
-  y: 610
+  y: 700
 };
 
 export const PLAYER_RADIUS = 14;
@@ -18,7 +18,7 @@ export const PLAYER_RADIUS = 14;
 export const AUDIO_RADIUS = 160;
 export const BOUNDARY_PADDING = 60;
 
-// Movement speed in pixels per frame when using continuous key tracking loop
+// Movement speed in world units per second
 export const MOVE_SPEED = 4.2;
 
 export const THEME = {
