@@ -171,3 +171,22 @@ This document defines the visual and UX direction. It does not change the real-t
 Product behavior remains governed by contracts.md.
 
 Future UI changes that introduce a new shared interaction or materially change product behavior should update contracts.md as well.
+
+## 9. Landing page implementation direction
+
+The landing page has been intentionally simplified into a normal-flow editorial product story.
+
+The previous long cinematic sticky sections are not part of the current direction. They caused too much scroll overhead and made the page feel disconnected from the content.
+
+The current experience should:
+
+- establish the product promise immediately;
+- explain the move → arrive → talk → leave interaction;
+- include one meaningful interactive proximity demonstration;
+- show the virtual workplace as a product surface rather than a decorative scene;
+- explain the technical foundation without turning the page into a developer dashboard;
+- end with a direct entry into /app.
+
+Motion should be restrained and purposeful. Use Lenis for smooth scrolling, Motion for in-view reveals and micro-interactions, and normal document flow for section transitions. Long sticky viewport locks should not be introduced unless a concrete product interaction requires one.
+
+The Proximity Lab is a visual simulation only until the actual proximity and WebRTC milestones are implemented.

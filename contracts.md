@@ -406,8 +406,9 @@ Animation should communicate hierarchy, state, navigation, and social/physical p
 
 Preferred responsibilities:
 
-- **Lenis** — smooth scrolling for the landing page.
-- **Animate UI / Motion** — React UI transitions, interactive controls, component animations, and micro-interactions.
+- **Lenis** — smooth scrolling for the landing page, including anchor navigation and tuned wheel/touch behavior.
+- **Scroll-linked cinematic transitions** — custom landing-page sections may map scroll progress to typography scale, opacity, blur, grid movement, and transition layers. These effects are presentation-only and must not alter product state.
+- **Motion / Animate UI patterns** — Motion-powered React entrance effects, spring interactions, hover/tap feedback, and reusable reveal patterns inspired by Animate UI. Animate UI is a copy-first component distribution, so only selected patterns should be adapted rather than adding a large UI dependency surface.
 - **Canvas** — actual virtual-world rendering.
 - Additional animation systems should only be introduced when a concrete interaction requires them.
 
@@ -433,3 +434,45 @@ This section defines visual and UX direction. It does not change the real-time n
 The detailed visual guidance is documented in `docs/ui-design-direction.md`.
 
 Future UI changes that introduce a new shared interaction or materially change product behavior should update this contract as well.
+
+
+## 14. Landing Page Revamp — 2026-09-29
+
+The landing page has been rebuilt around a product-first editorial flow. The previous oversized cinematic/sticky transition sections are removed because they created excessive empty scroll space and made the content leave the viewport before the intended reveal completed.
+
+### Landing page structure
+
+The public page now uses normal document flow with these sections:
+
+1. Hero — product promise and virtual-office preview
+2. Idea — why proximity changes collaboration
+3. The Loop — move, arrive, talk, leave
+4. Proximity Lab — interactive distance/audio-state demonstration
+5. Workspace — virtual-office model and product concepts
+6. System — real-time, proximity, WebRTC, and Web Audio architecture
+7. Final CTA — entry into the application
+
+### Interaction and animation behavior
+
+- Lenis remains responsible for smooth landing-page scrolling and anchor navigation.
+- Motion provides in-view reveals, subtle hover/tap feedback, and spring-like CTA interaction.
+- MotionConfig with reducedMotion="user" is used so Motion respects the user's reduced-motion preference.
+- Interactive product demonstrations use local React state only and do not imply that unfinished backend/WebRTC functionality is already active.
+- No landing-page section relies on a long sticky viewport lock or a scroll-driven cinematic reveal.
+- Decorative motion must remain subordinate to product meaning: presence, proximity, navigation, state, and spatial context.
+
+### Proximity Lab presentation contract
+
+The Proximity Lab is explicitly a presentation-only simulation until the real proximity/audio milestones are implemented.
+
+- Distance is displayed in world units.
+- The current planned proximity threshold remains 90 world units.
+- The slider changes presentation state only.
+- Conversation, Nearby, and Out of range are visual labels for the demo and are not network/audio states.
+- No microphone access, WebRTC connection, server-side proximity filtering, or real audio processing is triggered by the landing page.
+
+### Landing page visual boundary
+
+The landing page continues to use the dark corporate foundation, red brand/action color, yellow proximity/attention color, green active state, and Atkinson Hyperlegible typography defined in Section 13.
+
+The landing page should prefer restrained grids, frames, product diagrams, and purposeful transitions over particles, glowing blobs, excessive gradients, cursor trails, or oversized cinematic effects.
