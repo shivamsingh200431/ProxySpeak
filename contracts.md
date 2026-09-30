@@ -142,15 +142,11 @@ Additional fields may be introduced when required, but the initial movement mode
 
 The server is responsible for maintaining authoritative shared player state.
 
-### Proximity Threshold
+### Current frontend movement prototype
 
-The current proximity threshold is **90 world units**.
+The current frontend movement implementation is a local visual prototype. It updates the local Canvas position using keyboard input, but it does not synchronize coordinates with the server or other clients.
 
-This value is used exclusively as a visual preview circle on the local player's canvas. It does **not** represent an active audio or networking boundary — no voice connections, WebRTC sessions, or server-side proximity calculations are performed yet.
-
-The threshold will become a functional boundary in Milestone 3 (Proximity System), where it will drive nearby-player filtering and, subsequently, WebRTC signaling in Milestone 4 (Voice Communication).
-
-The constant is defined in `client/src/constants/world.js` as `AUDIO_RADIUS = 90`.
+Position synchronization, remote-player state, and authoritative movement validation remain Week 2 work.
 
 ## 8. Socket.io Event Contract
 
@@ -211,6 +207,14 @@ Clients may send movement updates or movement intentions, but the server must:
 
 Audio will be introduced only after movement and presence synchronization are stable.
 
+### Proximity design decision
+
+The initial planned proximity threshold is **90 world units**.
+
+This value is currently used by the frontend only as a visual radius/prototype. It does not yet establish an active voice connection, server-side proximity filtering, or WebRTC behavior.
+
+When the proximity system is implemented, the server/client contract will define how distance is calculated and how entering/leaving the threshold affects nearby-player state.
+
 Expected flow:
 
 ```text
@@ -262,7 +266,7 @@ The first audio implementation should prioritize reliable connections, understan
 - Define world coordinate rules
 - Calculate player distance
 - Identify nearby players
-- Apply proximity thresholds
+- Apply the 90-unit proximity threshold
 - Handle entering and leaving proximity range
 
 ### Milestone 4 — Voice Communication

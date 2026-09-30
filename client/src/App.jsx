@@ -11,11 +11,9 @@ import { socket, SERVER_URL } from "./socket/index";
  * Socket.io integration follows the event contract defined in contracts.md.
  */
 export default function App() {
-  // ── Player name & UI controls (Vimalesh branch) ──────────────────────────
   const [playerName, setPlayerName] = useState("");
   const [showProximityZone, setShowProximityZone] = useState(true);
 
-  // ── Socket / presence state (main branch) ────────────────────────────────
   const nameRef = useRef("");
   const joinFailedRef = useRef(false);
 
@@ -23,23 +21,16 @@ export default function App() {
   const [status, setStatus] = useState("Not connected");
   const [error, setError] = useState("");
 
-  // Remote players placeholder — always empty for now.
-  // Will be populated in Milestone 2 (Week 2) once the server-side player registry
-  // and position-sync events land (contracts.md §8 — movement/presence events TBD).
-  // Do NOT add socket events or networking logic here until that contract is finalised.
-  // Rendering logic for remote players already exists in WorldCanvas.jsx and is ready
-  // to receive data in the shape: { id: string, name: string, x: number, y: number }
+  // Prepared for Week 2 presence integration; currently local-only.
   const [remotePlayers] = useState([]);
 
-  // ── Frame-smooth keyboard movement (Vimalesh branch) ─────────────────────
+  // Local visual movement prototype; coordinates are not synchronized yet.
   const { position, heading, activeKeys, resetPosition } = useMovement();
 
-  // Keep nameRef in sync so the connect handler always reads the latest value.
   useEffect(() => {
     nameRef.current = playerName;
   }, [playerName]);
 
-  // ── Socket event listeners (main branch) ─────────────────────────────────
   useEffect(() => {
     function handleConnect() {
       setStatus("Connected");
@@ -81,7 +72,6 @@ export default function App() {
     };
   }, []);
 
-  // ── Join / Leave handlers (main branch) ──────────────────────────────────
   function handleNameChange(value) {
     setPlayerName(value);
     nameRef.current = value;
@@ -118,10 +108,8 @@ export default function App() {
   const isJoined = Boolean(playerId);
   const isConnecting = status === "Connecting..." || status === "Connected";
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <main className="app">
-      {/* ── Header ── */}
       <header className="app-header">
         <div>
           <p className="eyebrow">PROXIMITY AUDIO ECOSYSTEM</p>
@@ -137,16 +125,13 @@ export default function App() {
         </div>
       </header>
 
-      {/* ── Main card ── */}
       <section className="card">
-        {/* Toolbar: world title + join/leave panel */}
         <div className="toolbar">
           <div>
             <h2>Virtual Workspace</h2>
             <p>Move your avatar using W, A, S, D or the Arrow keys.</p>
           </div>
 
-          {/* Join / Leave panel — contract-compliant (contracts.md §8) */}
           <div className="join-panel">
             <label htmlFor="display-name">Display name</label>
             <div className="join-controls">
@@ -184,20 +169,15 @@ export default function App() {
           </div>
         </div>
 
-        {/* Inline error message */}
         {error && <p className="error">{error}</p>}
 
-        {/* Keyboard controls overlay */}
         <ControlsOverlay
           activeKeys={activeKeys}
-          playerName={playerName}
-          onNameChange={handleNameChange}
           onResetPosition={resetPosition}
           showProximityZone={showProximityZone}
           onToggleProximityZone={() => setShowProximityZone((prev) => !prev)}
         />
 
-        {/* Canvas world */}
         <WorldCanvas
           position={position}
           heading={heading}
@@ -207,10 +187,8 @@ export default function App() {
         />
       </section>
 
-      {/* ── HUD telemetry ── */}
       <WorldHUD position={position} remotePlayersCount={remotePlayers.length} />
 
-      {/* ── Stats row: playerId + world info ── */}
       <section className="stats-row">
         <div className="stat-card">
           <span className="stat-label">Player ID</span>
@@ -225,18 +203,16 @@ export default function App() {
         </div>
       </section>
 
-      {/* ── Server info footer ── */}
       <p className="server-info">
         Connected server: <span>{SERVER_URL}</span>
       </p>
 
-      {/* ── Proximity instructions ── */}
       <footer className="instructions-card">
         <h3>Proximity Interaction Guide</h3>
         <p>
-          The circle around your avatar previews the <strong>planned 90-unit proximity range</strong>.
-          Audio connections are not active yet — voice communication will be introduced
-          in a future milestone. Move around to explore the space.
+          The <strong>90-unit proximity range</strong> is currently a visual
+          prototype. Proximity filtering and voice connections will be added in
+          future milestones.
         </p>
       </footer>
     </main>
