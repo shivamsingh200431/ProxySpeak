@@ -23,8 +23,12 @@ export default function App() {
   const [status, setStatus] = useState("Not connected");
   const [error, setError] = useState("");
 
-  // Remote players array prepared for contracts.md Week-2 integration.
-  // Each entry follows schema: { id: string, name: string, x: number, y: number }
+  // Remote players placeholder — always empty for now.
+  // Will be populated in Milestone 2 (Week 2) once the server-side player registry
+  // and position-sync events land (contracts.md §8 — movement/presence events TBD).
+  // Do NOT add socket events or networking logic here until that contract is finalised.
+  // Rendering logic for remote players already exists in WorldCanvas.jsx and is ready
+  // to receive data in the shape: { id: string, name: string, x: number, y: number }
   const [remotePlayers] = useState([]);
 
   // ── Frame-smooth keyboard movement (Vimalesh branch) ─────────────────────
@@ -230,9 +234,9 @@ export default function App() {
       <footer className="instructions-card">
         <h3>Proximity Interaction Guide</h3>
         <p>
-          When other players enter your <strong>90-unit voice zone</strong>, audio
-          connections will establish automatically in future milestones. Move closer
-          to communicate; step outside the radius to disengage.
+          The circle around your avatar previews the <strong>planned 90-unit proximity range</strong>.
+          Audio connections are not active yet — voice communication will be introduced
+          in a future milestone. Move around to explore the space.
         </p>
       </footer>
     </main>

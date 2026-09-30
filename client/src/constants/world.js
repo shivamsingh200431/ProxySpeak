@@ -12,7 +12,10 @@ export const SPAWN_POSITION = {
 };
 
 export const PLAYER_RADIUS = 14;
-export const AUDIO_RADIUS = 90; // Sourced from contracts.md (90 units proximity radius)
+// 90-unit proximity threshold — documented in contracts.md §7 (Proximity Threshold).
+// Currently rendered as a visual preview circle only. Not an active audio boundary.
+// Will become functional in Milestone 3 (Proximity System).
+export const AUDIO_RADIUS = 90;
 export const BOUNDARY_PADDING = 24;
 
 // Movement speed in pixels per frame when using continuous key tracking loop

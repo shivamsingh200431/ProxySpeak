@@ -142,6 +142,16 @@ Additional fields may be introduced when required, but the initial movement mode
 
 The server is responsible for maintaining authoritative shared player state.
 
+### Proximity Threshold
+
+The current proximity threshold is **90 world units**.
+
+This value is used exclusively as a visual preview circle on the local player's canvas. It does **not** represent an active audio or networking boundary — no voice connections, WebRTC sessions, or server-side proximity calculations are performed yet.
+
+The threshold will become a functional boundary in Milestone 3 (Proximity System), where it will drive nearby-player filtering and, subsequently, WebRTC signaling in Milestone 4 (Voice Communication).
+
+The constant is defined in `client/src/constants/world.js` as `AUDIO_RADIUS = 90`.
+
 ## 8. Socket.io Event Contract
 
 Finalized for the connection/join/leave layer (Milestone 2, Week 1). Movement and full presence-list events will be appended here in Week 2 once the player registry (shared world state) lands.

@@ -163,7 +163,7 @@ export default function WorldCanvas({
       ctx.font = "10px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.fillText(`Voice Range (${AUDIO_RADIUS}u)`, position.x, position.y + AUDIO_RADIUS + 6);
+      ctx.fillText(`Proximity Preview (${AUDIO_RADIUS}u)`, position.x, position.y + AUDIO_RADIUS + 6);
     }
 
     // 5. Draw Remote Players (Contract-Ready)

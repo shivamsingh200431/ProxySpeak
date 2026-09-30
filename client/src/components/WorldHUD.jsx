@@ -31,7 +31,7 @@ export default function WorldHUD({ position, remotePlayersCount = 0 }) {
       <div className="stat-card">
         <span className="stat-label">Proximity Range</span>
         <strong className="stat-value">{AUDIO_RADIUS} units</strong>
-        <span className="stat-meta">Spatially active voice zone</span>
+        <span className="stat-meta">Planned proximity range (future milestone)</span>
       </div>
 
       <div className="stat-card">
