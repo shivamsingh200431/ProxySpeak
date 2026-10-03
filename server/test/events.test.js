@@ -381,9 +381,9 @@ test("a player already in a world cannot join or create another world", () => {
   assert.equal(connectedPlayers.get("socket-1"), player);
   assert.deepEqual(socket.emitted[0], [
     "world-error",
-    {
-      code: "ALREADY_IN_WORLD",
-      message: "You are already inside a world.",
-    },
-  ]);
+      {
+        code: "ALREADY_IN_WORLD",
+        message: "Leave your current world before creating another one.",
+      },
+    ]);
 });
