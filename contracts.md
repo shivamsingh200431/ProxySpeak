@@ -542,3 +542,16 @@ The workspace UI follows the supplied reference direction.
 - The microphone control requests local microphone permission and toggles local track state; it does **not** yet establish peer WebRTC audio.
 - The world and avatars use the current stickman visual language.
 - The workspace world remains visually calm and contained within its rounded viewport while glass UI overlays provide context.
+
+## 18. Workspace UI Completion — 2026-10-04
+
+The workspace UI should expose only meaningful interactions and make active states visually explicit.
+
+- The current world name in the top bar is a status surface, not a dropdown. It must not look like an unimplemented menu.
+- People, Map, Invite, and Settings controls expose their active state when the corresponding panel is open and toggle the panel closed when activated again.
+- The Lounge item represents the current workspace location and is presented as a non-interactive current-location indicator until room navigation is implemented.
+- The bottom dock is content-driven. The microphone control is shown only when the browser exposes microphone access; its current behavior remains local microphone permission/track control and is not peer audio.
+- The workspace mini-map represents all nine current prototype rooms and displays the local user plus server-sourced remote people.
+- Status surfaces such as connection state and people count are not presented as interactive controls.
+- UI labels must not imply that WebRTC peer audio is already active.
+- These are presentation and interaction rules; they do not change the Socket.io or movement contracts.
