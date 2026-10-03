@@ -245,3 +245,15 @@ The latest workspace implementation keeps the world visually dominant while rend
 - The bottom action island remains content-driven and stays compact around controls that actually exist.
 
 This is a workspace presentation/movement rule, not an authoritative multiplayer collision contract.
+
+## 13. Workspace UI completion rules — 2026-10-04
+
+The workspace controls now follow a strict functional-UI rule: a visible control should either perform an implemented action or clearly present non-interactive status.
+
+- The current world selector is a status surface until world switching is implemented.
+- Active People, Map, Invite, and Settings controls are visually highlighted and toggle their panels.
+- Lounge is the current-location indicator rather than a fake room-navigation control.
+- The mini-map mirrors the current nine-room prototype layout and uses live local/remote positions.
+- The microphone action is conditionally shown only when microphone access is supported by the browser.
+- Connection state and world population are status surfaces rather than fake buttons.
+- The workspace continues to avoid fabricated remote people and does not present unfinished peer voice as active.

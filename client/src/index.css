@@ -1242,3 +1242,82 @@ linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90de
     border-radius:13px;
   }
 }
+
+
+/* ============================================================
+   Workspace UI polish
+   Keep status surfaces visually non-interactive and make
+   active panel controls explicit.
+   ============================================================ */
+.workspace-select,
+.top-stat,
+.connection-chip{
+  cursor:default;
+}
+
+.workspace-select:hover,
+.top-stat:hover,
+.connection-chip:hover{
+  background:var(--glass-bg);
+  border-color:var(--glass-line);
+  transform:none;
+}
+
+.workspace-topbar__actions .glass-button.is-active{
+  color:var(--yellow);
+  background:rgba(255,200,61,.08);
+  border-color:rgba(255,200,61,.28);
+  box-shadow:inset 0 0 20px rgba(255,200,61,.05);
+}
+
+.mini-map__top{
+  gap:12px;
+}
+
+.mini-map__top > div{
+  display:grid;
+  gap:3px;
+}
+
+.mini-map__top strong{
+  font-size:13px;
+  font-weight:700;
+  color:#e8e8e2;
+}
+
+.mini-map__rooms{
+  position:absolute;
+  inset:0;
+}
+
+.mini-map__room{
+  position:absolute;
+  display:flex;
+  align-items:flex-end;
+  padding:5px;
+  border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.025);
+  color:rgba(255,255,255,.48);
+  font-size:6px;
+  letter-spacing:.04em;
+  overflow:hidden;
+}
+
+.mini-map__room b{
+  font-size:6px;
+  font-weight:700;
+}
+
+.mini-map__room--a{left:5%;top:7%;width:26%;height:25%}
+.mini-map__room--b{left:37%;top:7%;width:25%;height:25%}
+.mini-map__room--c{left:68%;top:7%;width:27%;height:25%}
+.mini-map__room--d{left:5%;top:39%;width:26%;height:23%}
+.mini-map__room--e{left:37%;top:36%;width:25%;height:28%;border-color:rgba(255,48,47,.22);background:rgba(255,48,47,.045)}
+.mini-map__room--f{left:68%;top:39%;width:27%;height:23%}
+.mini-map__room--g{left:5%;top:70%;width:26%;height:23%}
+.mini-map__room--h{left:37%;top:69%;width:25%;height:24%}
+.mini-map__room--i{left:68%;top:70%;width:27%;height:23%}
+
+.mini-dot{
+  z-index:3;
+}
