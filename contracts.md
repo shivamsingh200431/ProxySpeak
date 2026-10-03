@@ -224,9 +224,9 @@ Audio will be introduced only after movement and presence synchronization are st
 
 ### Proximity design decision
 
-The initial planned proximity threshold is **90 world units**.
+The landing-page demonstration uses a **90 world unit** presentation threshold.
 
-This value is currently used by the frontend only as a visual radius/prototype. It does not yet establish an active voice connection, server-side proximity filtering, or WebRTC behavior.
+The current workspace uses a separate **160 world unit** visual radius for the prototype world. Neither value establishes an active voice connection, server-side proximity filtering, or WebRTC behavior. The authoritative voice threshold will be defined when the real proximity/audio milestone is implemented.
 
 When the proximity system is implemented, the server/client contract will define how distance is calculated and how entering/leaving the threshold affects nearby-player state.
 
@@ -281,7 +281,7 @@ The first audio implementation should prioritize reliable connections, understan
 - Define world coordinate rules
 - Calculate player distance
 - Identify nearby players
-- Apply the 90-unit proximity threshold
+- Define and apply the authoritative voice proximity threshold
 - Handle entering and leaving proximity range
 
 ### Milestone 4 — Voice Communication
