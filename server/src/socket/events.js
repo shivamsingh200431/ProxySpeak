@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { validateJoinWorldPayload } from "./validators.js";
+import { updateProximity, clearPlayerProximity } from "./proximity.js";
 
 const PLAYER_ID_LENGTH = 6;
 const WORLD_CODE_LENGTH = 6;
@@ -14,7 +15,7 @@ export const worlds = new Map();
 
 function randomCode(length) {
   const bytes = crypto.randomBytes(length);
-  return Array.from(bytes, (byte) => ALPHABET[byte % ALPHABET.length]).join("");
+  return Array.from(bytes, (byte) => ALPHABET[byte% ALPHABET.length]).join("");
 }
 
 function uniqueCode(collection, key, length) {
@@ -27,7 +28,10 @@ function uniqueCode(collection, key, length) {
 function createWorld(name) {
   const worldId = uniqueCode(worlds, "worldId", WORLD_CODE_LENGTH);
   const inviteCode = uniqueCode(worlds, "inviteCode", WORLD_CODE_LENGTH);
-  const world = { worldId, inviteCode, name, ownerSocketId: null, players: new Map() };
+  // proximityPairs: Set of canonical "playerIdA|playerIdB" keys currently
+  // within the 90-unit threshold — owned by proximity.js, read/written only
+  // through updateProximity()/clearPlayerProximity(). See proximity.js.
+  const world = { worldId, inviteCode, name, ownerSocketId: null, players: new Map(), proximityPairs: new Set() };
   worlds.set(worldId, world);
   return world;
 }
@@ -51,9 +55,14 @@ function removePlayerFromWorld(io, socket, cause) {
   connectedPlayers.delete(socket.id);
 
   if (world) {
+    // Clear proximity state and notify anyone who was near this player
+    // BEFORE removing them from world.players, so clearPlayerProximity can
+    // still look up the other side of each pair.
+    clearPlayerProximity(io, world, player);
+
     world.players.delete(socket.id);
     socket.leave(world.worldId);
-    socket.to(world.worldId).emit("player-left", { playerId: player.playerId });
+    socket.to(world.worldId).emit("player-left", {playerId: player.playerId });
     if (world.players.size === 0) worlds.delete(world.worldId);
   }
   console.log(`[socket] ${player.name} (${player.playerId}) left ${player.worldId} (${cause})`);
@@ -86,6 +95,11 @@ function joinWorld(io, socket, name, world) {
   });
 
   socket.to(world.worldId).emit("player-joined", publicPlayer(player));
+
+  // Establish initial proximity state against whoever is already in the
+  // world — without this, a player spawning on top of someone else would
+  // show no proximity-entered event until the next move.
+  updateProximity(io, world, player);
 }
 
 function handleCreateWorld(io, socket, payload) {
@@ -111,10 +125,10 @@ function handleJoinWorld(io, socket, payload) {
   }
   const result = validateJoinWorldPayload(payload);
   if (!result.valid) {
-    socket.emit("join-error", { code: result.code, message: result.message });
+    socket.emit("join-error", { code: result.code,message: result.message });
     return;
   }
-  const inviteCode = String(payload?.inviteCode ?? "").trim().toUpperCase();
+  const inviteCode = String(payload?.inviteCode ??"").trim().toUpperCase();
   if (!inviteCode) {
     socket.emit("join-error", { code: "INVITE_CODE_REQUIRED", message: "Enter a world invite code." });
     return;
@@ -136,7 +150,10 @@ function handlePlayerMove(io, socket, payload) {
 
   player.x = Math.max(BOUNDARY_PADDING, Math.min(WORLD_WIDTH - BOUNDARY_PADDING, x));
   player.y = Math.max(BOUNDARY_PADDING, Math.min(WORLD_HEIGHT - BOUNDARY_PADDING, y));
-  socket.to(player.worldId).emit("player-moved", { playerId: player.playerId, x: player.x, y: player.y });
+  socket.to(player.worldId).emit("player-moved", {playerId: player.playerId, x: player.x, y: player.y });
+
+  const world = worlds.get(player.worldId);
+  if (world) updateProximity(io, world, player);
 }
 
 export function registerSocketEvents(io) {
