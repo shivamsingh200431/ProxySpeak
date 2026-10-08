@@ -1321,3 +1321,54 @@ linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90de
 .mini-dot{
   z-index:3;
 }
+
+
+/* Local voice activity indicator */
+.workspace-app {
+  --mic-level: 0;
+}
+
+.bottom-dock .dock-action:first-child {
+  position: relative;
+}
+
+.bottom-dock .dock-action:first-child::after {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  right: 12px;
+  top: 12px;
+  border-radius: 50%;
+  background: var(--red);
+  opacity: calc(.18 + (var(--mic-level) * .82));
+  transform: scale(calc(1 + (var(--mic-level) * 1.5)));
+  box-shadow: 0 0 calc(5px + (var(--mic-level) * 10px)) rgba(255,48,47,.55);
+  pointer-events: none;
+}
+
+.workspace-app[data-voice-active="true"] .bottom-dock .dock-action:first-child {
+  color: #fff;
+  border-color: rgba(255,48,47,.34);
+  background:
+    radial-gradient(circle at 50% 48%, rgba(255,48,47,calc(.05 + (var(--mic-level) * .16))), transparent 62%),
+    rgba(255,255,255,.055);
+  box-shadow:
+    inset 0 0 22px rgba(255,48,47,calc(.04 + (var(--mic-level) * .12))),
+    0 0 18px rgba(255,48,47,calc(var(--mic-level) * .16));
+}
+
+.workspace-app[data-voice-active="true"] .bottom-dock .dock-action:first-child svg {
+  transform: scale(calc(1 + (var(--mic-level) * .08)));
+}
+
+.workspace-app[data-voice-active="true"] .bottom-dock .dock-action:first-child small {
+  color: #fff;
+}
+
+@media(prefers-reduced-motion:reduce) {
+  .bottom-dock .dock-action:first-child::after,
+  .workspace-app[data-voice-active="true"] .bottom-dock .dock-action:first-child svg {
+    transform: none;
+  }
+}
