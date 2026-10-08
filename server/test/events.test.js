@@ -243,7 +243,7 @@ test("movement and presence broadcasts are isolated to the current world", () =>
     {
       playerId: firstPlayer.playerId,
       x: 1100,
-      y: 7`50,
+      y: 750,
     },
   ]);
   assert.equal(third.emitted.length, 0);
