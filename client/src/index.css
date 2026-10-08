@@ -1328,11 +1328,11 @@ linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90de
   --mic-level: 0;
 }
 
-.bottom-dock .dock-action:first-child {
+.bottom-dock .dock-action--mic {
   position: relative;
 }
 
-.bottom-dock .dock-action:first-child::after {
+.bottom-dock .dock-action--mic::after {
   content: "";
   position: absolute;
   width: 7px;
@@ -1347,7 +1347,7 @@ linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90de
   pointer-events: none;
 }
 
-.workspace-app[data-voice-active="true"] .bottom-dock .dock-action:first-child {
+.workspace-app[data-voice-active="true"] .bottom-dock .dock-action--mic {
   color: #fff;
   border-color: rgba(255,48,47,.34);
   background:
@@ -1358,17 +1358,17 @@ linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90de
     0 0 18px rgba(255,48,47,calc(var(--mic-level) * .16));
 }
 
-.workspace-app[data-voice-active="true"] .bottom-dock .dock-action:first-child svg {
+.workspace-app[data-voice-active="true"] .bottom-dock .dock-action--mic svg {
   transform: scale(calc(1 + (var(--mic-level) * .08)));
 }
 
-.workspace-app[data-voice-active="true"] .bottom-dock .dock-action:first-child small {
+.workspace-app[data-voice-active="true"] .bottom-dock .dock-action--mic small {
   color: #fff;
 }
 
 @media(prefers-reduced-motion:reduce) {
-  .bottom-dock .dock-action:first-child::after,
-  .workspace-app[data-voice-active="true"] .bottom-dock .dock-action:first-child svg {
+  .bottom-dock .dock-action--mic::after,
+  .workspace-app[data-voice-active="true"] .bottom-dock .dock-action--mic svg {
     transform: none;
   }
 }
