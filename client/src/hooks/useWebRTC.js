@@ -10,9 +10,11 @@ function shouldOffer(localPlayerId, remotePlayerId) {
 export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPosition }) {
   const peersRef = useRef(new Map());
   const remotePlayersRef = useRef(remotePlayers);
+  const micStreamRef = useRef(micStream);
   const audioContextRef = useRef(null);
 
   useEffect(() => { remotePlayersRef.current = remotePlayers; }, [remotePlayers]);
+  useEffect(() => { micStreamRef.current = micStream; }, [micStream]);
 
   const closePeer = useCallback((remotePlayerId) => {
     const peer = peersRef.current.get(remotePlayerId);
@@ -66,10 +68,10 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       if (["failed", "closed"].includes(connection.connectionState)) closePeer(remotePlayerId);
     };
 
-    const track = micStream?.getAudioTracks?.()[0];
+    const track = micStreamRef.current?.getAudioTracks?.()[0];
     if (track) transceiver.sender.replaceTrack(track);
     return peer;
-  }, [closePeer, micStream, playerId, socket]);
+  }, [closePeer, playerId, socket]);
 
   const createOffer = useCallback(async (remotePlayerId) => {
     const peer = getOrCreatePeer(remotePlayerId);
