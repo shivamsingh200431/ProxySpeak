@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMovement } from "./hooks/useMovement";
+import { useWebRTC } from "./hooks/useWebRTC";
 import WorldCanvas from "./components/WorldCanvas";
 import { socket } from "./socket/index";
 import { AUDIO_RADIUS, WORLD_HEIGHT, WORLD_WIDTH } from "./constants/world";
@@ -32,9 +33,10 @@ function BottomDock({actions,onAction,micEnabled}){return <div className="bottom
 function InvitePanel({inviteCode,onClose}){const [copied,setCopied]=useState(false);async function copy(){try{await navigator.clipboard.writeText(inviteCode);setCopied(true);setTimeout(()=>setCopied(false),1400)}catch{}}return <aside className="floating-panel invite-panel" data-panel-surface><div className="panel-heading"><div><span className="panel-kicker">INVITE TO WORLD</span><h2>Bring someone in.</h2></div><GlassButton onClick={onClose}>×</GlassButton></div><p className="invite-copy">Share this code. They can enter it from the Join a World screen.</p><div className="invite-code">{inviteCode}</div><button className="join-secondary invite-copy-button" onClick={copy}><Icon name="copy" size={16}/>{copied?"Copied":"Copy invite code"}</button></aside>}
 
 export default function App(){
-  const [playerName,setPlayerName]=useState("");const [inviteCode,setInviteCode]=useState("");const [worldName,setWorldName]=useState("");const [worldId,setWorldId]=useState("");const [worldInvite,setWorldInvite]=useState("");const [playerId,setPlayerId]=useState("");const [remotePlayers,setRemotePlayers]=useState([]);const [status,setStatus]=useState("Not connected");const [error,setError]=useState("");const [panel,setPanel]=useState(null);const [transparency,setTransparency]=useState(.68);const [micEnabled,setMicEnabled]=useState(false);const [micSupported,setMicSupported]=useState(false);
+  const [playerName,setPlayerName]=useState("");const [inviteCode,setInviteCode]=useState("");const [worldName,setWorldName]=useState("");const [worldId,setWorldId]=useState("");const [worldInvite,setWorldInvite]=useState("");const [playerId,setPlayerId]=useState("");const [remotePlayers,setRemotePlayers]=useState([]);const [status,setStatus]=useState("Not connected");const [error,setError]=useState("");const [panel,setPanel]=useState(null);const [transparency,setTransparency]=useState(.68);const [micEnabled,setMicEnabled]=useState(false);const [micSupported,setMicSupported]=useState(false);const [micStream,setMicStream]=useState(null);
   const nameRef=useRef("");const intentRef=useRef(null);const lastSentRef=useRef(0);const panelRef=useRef(null);const micStreamRef=useRef(null);
   const {position,heading,activeKeys}=useMovement();
+  useWebRTC({socket,playerId,micStream,remotePlayers,localPosition:position});
   useEffect(()=>{nameRef.current=playerName},[playerName]);
   useEffect(()=>{setMicSupported(Boolean(navigator.mediaDevices?.getUserMedia))},[]);
   useEffect(()=>{
@@ -58,12 +60,12 @@ export default function App(){
   useEffect(()=>()=>{micStreamRef.current?.getTracks().forEach(track=>track.stop())},[]);
   async function toggleMic(){
     if(!micSupported){setError("This browser does not support microphone access.");return}
-    if(!micStreamRef.current){try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});micStreamRef.current=stream;setMicEnabled(true);setError("")}catch{setError("Microphone permission was not granted.")}return}
+    if(!micStreamRef.current){try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});micStreamRef.current=stream;setMicStream(stream);setMicEnabled(true);setError("")}catch{setError("Microphone permission was not granted.")}return}
     const next=!micEnabled;micStreamRef.current.getAudioTracks().forEach(track=>{track.enabled=next});setMicEnabled(next);
   }
   function togglePanel(next){setPanel(current=>current===next?null:next)}
   function begin(type){const name=playerName.trim();if(!name)return setError("Enter your display name.");if(name.length>20)return setError("Name must be between 1 and 20 characters.");if(type==="join"&&!inviteCode.trim())return setError("Enter the world invite code.");intentRef.current={type,code:inviteCode.trim().toUpperCase()};setError("");setStatus("Connecting…");if(socket.connected)socket.disconnect();socket.connect()}
-  function leaveWorld(){socket.emit("leave-world");socket.disconnect();setWorldId("");setPlayerId("");setRemotePlayers([]);setWorldName("");setWorldInvite("");setPanel(null);setMicEnabled(false);micStreamRef.current?.getTracks().forEach(track=>track.stop());micStreamRef.current=null;intentRef.current=null;setStatus("Not connected")}
+  function leaveWorld(){socket.emit("leave-world");socket.disconnect();setWorldId("");setPlayerId("");setRemotePlayers([]);setWorldName("");setWorldInvite("");setPanel(null);setMicEnabled(false);setMicStream(null);micStreamRef.current?.getTracks().forEach(track=>track.stop());micStreamRef.current=null;intentRef.current=null;setStatus("Not connected")}
   const isJoined=Boolean(worldId&&playerId);const cssVars=useMemo(()=>({"--glass-alpha":transparency}),[transparency]);
   const actions=[];if(micSupported)actions.push({id:"mic",icon:"mic",label:"Microphone"});actions.push({id:"map",icon:"map",label:"Map"});if(remotePlayers.length>0)actions.push({id:"people",icon:"people",label:"People"});
   function handleDockAction(id){if(id==="mic")toggleMic();if(id==="map")togglePanel("map");if(id==="people")togglePanel("people")}
