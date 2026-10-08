@@ -699,3 +699,51 @@ The client now implements the first end-to-end WebRTC audio lifecycle on top of 
 - This milestone does not define TURN infrastructure, connection retry, speaking indicators, echo cancellation configuration, or persistent audio device preferences.
 
 This section records the client implementation boundary; it does not change the server signaling event payloads defined in Section 20.
+
+
+## 22. WebRTC Reliability & Local Voice Activity — 2026-10-08
+
+The first browser validation of the Week 3 client WebRTC implementation exposed an important debugging gap: microphone capture, signaling, ICE connectivity, remote-track delivery, and audio playback were not separately observable. This milestone hardens the ICE/audio lifecycle and adds a local microphone activity indicator.
+
+### ICE candidate ordering
+
+- Incoming ICE candidates must not be passed to `RTCPeerConnection.addIceCandidate()` until the corresponding remote description has been applied.
+- Candidates that arrive before the peer exists or before `remoteDescription` is available are queued per remote `playerId`.
+- Queued candidates are flushed after `setRemoteDescription()` succeeds for the offer or answer.
+- A rejected candidate is logged for diagnosis but does not by itself destroy an otherwise valid peer connection.
+- The signaling server continues to forward ICE payloads unchanged; candidate ordering is a client lifecycle responsibility.
+
+### Audio context lifecycle
+
+- Remote audio is routed through the existing Web Audio GainNode path only; no hidden zero-volume HTML audio element is required.
+- The client uses an interactive-latency AudioContext for voice playback and microphone analysis.
+- The client attempts to resume a suspended AudioContext after user interaction so browser autoplay restrictions do not silently suppress remote audio.
+- AudioContext state and remote-track arrival are logged for browser troubleshooting.
+
+### Local microphone activity
+
+- When a microphone MediaStream exists, the client attaches an AnalyserNode to that stream.
+- The analyser calculates a smoothed RMS level without sending or storing microphone samples.
+- The workspace microphone control displays a restrained activity pulse while the local input crosses the speaking threshold.
+- The indicator represents **local microphone input only**. It does not claim that WebRTC transmission or remote playback has succeeded.
+- Voice activity state is cleared when the microphone stream is removed or the WebRTC hook is unmounted.
+- Reduced-motion users receive the same state indication without transform animation.
+
+### Diagnostics
+
+The client logs the following WebRTC lifecycle signals in the browser console:
+
+- offer sent
+- answer sent/applied
+- ICE candidate sent, queued, and added
+- ICE candidate errors
+- ICE connection state changes
+- RTCPeerConnection state changes
+- remote audio track received
+- signaling routing errors
+
+These logs are diagnostic only and do not form a new application/network contract.
+
+### Scope boundary
+
+This milestone does not add TURN infrastructure, persistent device preferences, speaking indicators for remote people, server-side audio processing, or a remote voice activity protocol. A successful local microphone indicator proves capture, not end-to-end peer audio.
