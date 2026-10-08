@@ -198,6 +198,66 @@ A public player payload is:
 - Explicit leave and disconnect both remove the player from the world and notify the remaining members.
 - Empty worlds are removed from the in-memory registry.
 
+### Proximity
+
+The server computes proximity between players in the same world and tells
+both players whenever a pair enters or leaves range. This is server-side
+state only; it does not establish any WebRTC connection or audio behavior
+(Milestone 4 consumes these events).
+
+**Threshold:** 90 world units, measured as Euclidean distance between two
+players' `(x, y)` positions. A pair is "in proximity" when the distance is
+less than or equal to 90. Defined as `PROXIMITY_THRESHOLD` in
+`server/src/socket/proximity.js`. This is the authoritative server value
+and is separate from the frontend's visual-only radii (see §10 and §15).
+
+#### Server → Client
+
+| Event | Payload | Sent to |
+| --- | --- | --- |
+| `proximity-entered` | `{ playerId: string }` | Both players in the pair, individually. Each receives the **other** player's `playerId`. |
+| `proximity-left` | `{ playerId: string }` | Both players in the pair, individually. Each receives the **other** player's `playerId`. |
+
+There is no client → server proximity event. Proximity is derived entirely
+from the positions the server already holds.
+
+#### When the server computes it
+
+- **On join:** immediately after a player is placed in a world, against
+  everyone already present. Players spawn at the same point, so a joiner
+  will normally enter proximity with anyone standing at spawn.
+- **On every accepted `player-moved`:** the mover is re-checked against every
+  other player in the same world. Only pairs involving the mover are
+  re-evaluated.
+- **On `leave-world` or disconnect:** every active pair involving that player
+  is cleared and the remaining player receives `proximity-left` for them. This
+  is in addition to `player-left`, which does not by itself signal a
+  proximity change.
+
+Events are only emitted on a **transition** (out of range to in range, or
+the reverse). Movement that keeps a pair in the same state emits nothing.
+Proximity never crosses worlds.
+
+#### Both-sides notification (decision)
+
+Both players in a pair are notified on every transition, including the player
+whose movement caused it. This differs from `player-joined` and `player-moved`,
+which are not echoed back to the acting player, and it is deliberate:
+proximity describes a relationship between two clients, and Milestone 4 needs
+both clients to receive a deterministic signal to establish or tear down their
+own side of a peer connection.
+
+#### World object addition
+
+Each in-memory world also carries:
+
+```ts
+proximityPairs: Set<string> // sorted "playerIdA|playerIdB" keys of pairs currently in range
+```
+
+`proximityPairs` is owned by `proximity.js` and must only be changed through
+`updateProximity()` and `clearPlayerProximity()`.
+
 ### Built-in Socket.io lifecycle
 
 - `connection` — fires when the client establishes a Socket.io connection.
@@ -279,10 +339,13 @@ The first audio implementation should prioritize reliable connections, understan
 ### Milestone 3 — Proximity System
 
 - Define world coordinate rules
-- Calculate player distance
-- Identify nearby players
-- Define and apply the authoritative voice proximity threshold
-- Handle entering and leaving proximity range
+- Calculate player distance — done (`calculateDistance`, `proximity.js`)
+- Identify nearby players — done (per-world `proximityPairs` tracking)
+- Apply the 90-unit proximity threshold — done (`PROXIMITY_THRESHOLD`)
+- Handle entering and leaving proximity range — done (`proximity-entered` / `proximity-left`, including on leave/disconnect)
+
+Server-side proximity is implemented. Client-side consumption of these events
+and everything audio-related remain Milestone 4.
 
 ### Milestone 4 — Voice Communication
 
@@ -477,13 +540,11 @@ The public page now uses normal document flow with these sections:
 
 ### Proximity Lab presentation contract
 
-The Proximity Lab is explicitly a presentation-only simulation until the real proximity/audio milestones are implemented.
-
-- Distance is displayed in world units.
-- The current planned proximity threshold remains 90 world units.
-- The slider changes presentation state only.
-- Conversation, Nearby, and Out of range are visual labels for the demo and are not network/audio states.
-- No microphone access, WebRTC connection, server-side proximity filtering, or real audio processing is triggered by the landing page.
+This value is the authoritative server-side proximity threshold (see §8
+Proximity) and is also used by the frontend as a visual radius/prototype. The
+server emits `proximity-entered` / `proximity-left` when a pair crosses it. It
+does not yet establish an active voice connection or any WebRTC behavior;
+that is Milestone 4.
 
 ### Landing page visual boundary
 
