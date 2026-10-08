@@ -383,3 +383,176 @@ test("a player already in a world cannot join or create another world", () => {
       },
     ]);
 });
+
+
+test("routes WebRTC offers to the target player in the same world", () => {
+  const { createSocket } = createHarness();
+  const first = createSocket("socket-1");
+  const second = createSocket("socket-2");
+
+  first.handlers.get("create-world")({ name: "Shivam" });
+  const world = [...worlds.values()][0];
+  second.handlers.get("join-world")({ name: "Sagar", inviteCode: world.inviteCode });
+
+  const firstPlayer = connectedPlayers.get("socket-1");
+  const secondPlayer = connectedPlayers.get("socket-2");
+  first.emitted.length = 0;
+  second.emitted.length = 0;
+
+  const payload = {
+    targetPlayerId: secondPlayer.playerId,
+    fromPlayerId: firstPlayer.playerId,
+    sdp: { type: "offer", sdp: "mock-offer" },
+  };
+
+  first.handlers.get("webrtc-offer")(payload);
+
+  assert.deepEqual(second.emitted.at(-1), ["webrtc-offer", payload]);
+  assert.equal(first.emitted.length, 0);
+});
+
+test("routes WebRTC answers and ICE candidates using the same target validation", () => {
+  const { createSocket } = createHarness();
+  const first = createSocket("socket-1");
+  const second = createSocket("socket-2");
+
+  first.handlers.get("create-world")({ name: "Shivam" });
+  const world = [...worlds.values()][0];
+  second.handlers.get("join-world")({ name: "Sagar", inviteCode: world.inviteCode });
+
+  const firstPlayer = connectedPlayers.get("socket-1");
+  const secondPlayer = connectedPlayers.get("socket-2");
+
+  second.emitted.length = 0;
+
+  const answer = {
+    targetPlayerId: firstPlayer.playerId,
+    fromPlayerId: secondPlayer.playerId,
+    sdp: { type: "answer", sdp: "mock-answer" },
+  };
+  second.handlers.get("webrtc-answer")(answer);
+
+  assert.deepEqual(first.emitted.at(-1), ["webrtc-answer", answer]);
+
+  first.emitted.length = 0;
+
+  const candidate = {
+    targetPlayerId: secondPlayer.playerId,
+    fromPlayerId: firstPlayer.playerId,
+    candidate: {
+      candidate: "candidate:mock",
+      sdpMid: "0",
+      sdpMLineIndex: 0,
+    },
+  };
+  first.handlers.get("webrtc-ice-candidate")(candidate);
+
+  assert.deepEqual(second.emitted.at(-1), ["webrtc-ice-candidate", candidate]);
+});
+
+test("rejects WebRTC signaling from a socket that is not in a world", () => {
+  const { createSocket } = createHarness();
+  const socket = createSocket("socket-1");
+
+  socket.handlers.get("webrtc-offer")({
+    targetPlayerId: "BBBBBB",
+    fromPlayerId: "AAAAAA",
+    sdp: { type: "offer", sdp: "mock" },
+  });
+
+  assert.deepEqual(socket.emitted.at(-1), [
+    "webrtc-signaling-error",
+    {
+      code: "NOT_IN_WORLD",
+      message: "You must be inside a world to send WebRTC signaling messages.",
+    },
+  ]);
+});
+
+test("rejects WebRTC signaling when the target is missing or in another world", () => {
+  const { createSocket } = createHarness();
+  const first = createSocket("socket-1");
+  const second = createSocket("socket-2");
+  const third = createSocket("socket-3");
+
+  first.handlers.get("create-world")({ name: "Shivam" });
+  const firstWorld = [...worlds.values()][0];
+  second.handlers.get("join-world")({ name: "Sagar", inviteCode: firstWorld.inviteCode });
+  third.handlers.get("create-world")({ name: "Vimalesh" });
+
+  const firstPlayer = connectedPlayers.get("socket-1");
+  const thirdPlayer = connectedPlayers.get("socket-3");
+  first.emitted.length = 0;
+
+  first.handlers.get("webrtc-offer")({
+    targetPlayerId: thirdPlayer.playerId,
+    fromPlayerId: firstPlayer.playerId,
+    sdp: { type: "offer", sdp: "mock" },
+  });
+
+  assert.deepEqual(first.emitted.at(-1), [
+    "webrtc-signaling-error",
+    {
+      code: "TARGET_NOT_FOUND",
+      message: "The WebRTC signaling target is no longer available in this world.",
+      targetPlayerId: thirdPlayer.playerId,
+    },
+  ]);
+
+  first.emitted.length = 0;
+
+  first.handlers.get("webrtc-offer")({
+    targetPlayerId: "ZZZZZZ",
+    fromPlayerId: firstPlayer.playerId,
+    sdp: { type: "offer", sdp: "mock" },
+  });
+
+  assert.deepEqual(first.emitted.at(-1), [
+    "webrtc-signaling-error",
+    {
+      code: "TARGET_NOT_FOUND",
+      message: "The WebRTC signaling target is no longer available in this world.",
+      targetPlayerId: "ZZZZZZ",
+    },
+  ]);
+});
+
+test("rejects self-targeted or forged WebRTC signaling", () => {
+  const { createSocket } = createHarness();
+  const socket = createSocket("socket-1");
+
+  socket.handlers.get("create-world")({ name: "Shivam" });
+  const player = connectedPlayers.get("socket-1");
+
+  socket.emitted.length = 0;
+  socket.handlers.get("webrtc-offer")({
+    targetPlayerId: player.playerId,
+    fromPlayerId: player.playerId,
+    sdp: { type: "offer", sdp: "mock" },
+  });
+
+  assert.deepEqual(socket.emitted.at(-1), [
+    "webrtc-signaling-error",
+    {
+      code: "INVALID_TARGET",
+      message: "The WebRTC signaling target is invalid.",
+      targetPlayerId: player.playerId,
+    },
+  ]);
+
+  socket.emitted.length = 0;
+  socket.handlers.get("webrtc-offer")({
+    targetPlayerId: "BBBBBB",
+    fromPlayerId: "OTHER1",
+    sdp: { type: "offer", sdp: "mock" },
+  });
+
+  assert.deepEqual(socket.emitted.at(-1), [
+    "webrtc-signaling-error",
+    {
+      code: "INVALID_TARGET",
+      message: "The WebRTC signaling target is invalid.",
+      targetPlayerId: "BBBBBB",
+    },
+  ]);
+});

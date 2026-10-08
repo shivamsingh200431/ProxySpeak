@@ -141,6 +141,57 @@ function handleJoinWorld(io, socket, payload) {
   joinWorld(io, socket, result.name, world);
 }
 
+function routeWebRTCSignal(io, socket, event, payload) {
+  const sender = connectedPlayers.get(socket.id);
+  if (!sender) {
+    socket.emit("webrtc-signaling-error", {
+      code: "NOT_IN_WORLD",
+      message: "You must be inside a world to send WebRTC signaling messages.",
+    });
+    return;
+  }
+
+  if (!payload || typeof payload !== "object") {
+    socket.emit("webrtc-signaling-error", {
+      code: "INVALID_TARGET",
+      message: "A valid targetPlayerId is required.",
+    });
+    return;
+  }
+
+  const { targetPlayerId, fromPlayerId } = payload;
+
+  if (
+    typeof targetPlayerId !== "string" ||
+    !targetPlayerId ||
+    targetPlayerId === sender.playerId ||
+    fromPlayerId !== sender.playerId
+  ) {
+    socket.emit("webrtc-signaling-error", {
+      code: "INVALID_TARGET",
+      message: "The WebRTC signaling target is invalid.",
+      targetPlayerId,
+    });
+    return;
+  }
+
+  const world = worlds.get(sender.worldId);
+  const target = world
+    ? [...world.players.values()].find((player) => player.playerId === targetPlayerId)
+    : null;
+
+  if (!target) {
+    socket.emit("webrtc-signaling-error", {
+      code: "TARGET_NOT_FOUND",
+      message: "The WebRTC signaling target is no longer available in this world.",
+      targetPlayerId,
+    });
+    return;
+  }
+
+  io.to(target.id).emit(event, payload);
+}
+
 function handlePlayerMove(io, socket, payload) {
   const player = connectedPlayers.get(socket.id);
   if (!player) return;
@@ -162,6 +213,9 @@ export function registerSocketEvents(io) {
     socket.on("create-world", (payload) => handleCreateWorld(io, socket, payload));
     socket.on("join-world", (payload) => handleJoinWorld(io, socket, payload));
     socket.on("player-moved", (payload) => handlePlayerMove(io, socket, payload));
+    socket.on("webrtc-offer", (payload) => routeWebRTCSignal(io, socket, "webrtc-offer", payload));
+    socket.on("webrtc-answer", (payload) => routeWebRTCSignal(io, socket, "webrtc-answer", payload));
+    socket.on("webrtc-ice-candidate", (payload) => routeWebRTCSignal(io, socket, "webrtc-ice-candidate", payload));
     socket.on("leave-world", () => removePlayerFromWorld(io, socket, "leave-world"));
     socket.on("disconnect", (reason) => removePlayerFromWorld(io, socket, `disconnect:${reason}`));
   });
