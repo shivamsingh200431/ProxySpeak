@@ -72,6 +72,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
 
     peer.audio?.source?.disconnect();
     peer.audio?.gain?.disconnect();
+    pendingIceRef.current.delete(remotePlayerId);
     peersRef.current.delete(remotePlayerId);
   }, []);
 
@@ -187,7 +188,16 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       const source = context.createMediaStreamSource(stream);
       const gain = context.createGain();
 
-      gain.gain.value = 0;
+      const remote = remotePlayersRef.current.find((item) => item.playerId === remotePlayerId);
+      const distance = remote
+        ? Math.hypot(localPosition.x - remote.x, localPosition.y - remote.y)
+        : PROXIMITY_AUDIO_RADIUS;
+      const initialGain = Math.max(
+        0,
+        Math.min(1, 1 - distance / PROXIMITY_AUDIO_RADIUS),
+      );
+
+      gain.gain.value = initialGain;
       source.connect(gain).connect(context.destination);
 
       peer.audio = { source, gain };
