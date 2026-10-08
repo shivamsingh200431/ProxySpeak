@@ -91,6 +91,19 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
   }, [getOrCreatePeer, playerId, socket]);
 
   useEffect(() => {
+    if (!playerId || typeof RTCPeerConnection === "undefined") return;
+    for (const remote of remotePlayers) {
+      const distance = Math.hypot(localPosition.x - remote.x, localPosition.y - remote.y);
+      if (distance <= PROXIMITY_AUDIO_RADIUS) {
+        getOrCreatePeer(remote.playerId);
+        if (shouldOffer(playerId, remote.playerId)) {
+          createOffer(remote.playerId).catch(() => closePeer(remote.playerId));
+        }
+      }
+    }
+  }, [closePeer, createOffer, getOrCreatePeer, localPosition, playerId, remotePlayers]);
+
+  useEffect(() => {
     if (!playerId || typeof RTCPeerConnection === "undefined") return undefined;
 
     const onProximityEntered = ({ playerId: remotePlayerId }) => {
