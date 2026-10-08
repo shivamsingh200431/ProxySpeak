@@ -10,11 +10,7 @@ function createHarness() {
   const connectionHandlers = [];
   const sockets = new Map();
 
-  const io = {
-    on(event, handler) {
-      if (event === "connection") connectionHandlers.push(handler);
-    },
-  };
+ const io = { on(event, handler) { if (event === "connection") connectionHandlers.push(handler); }, to(id) { return { emit(event, payload) { const target = sockets.get(id); if (target) target.emit(event, payload); }, }; }, };
 
   registerSocketEvents(io);
 
@@ -192,7 +188,7 @@ test("player-moved updates state, clamps bounds, and broadcasts through the worl
     "player-moved",
     { playerId: player.playerId, x: 1000, y: 720 },
   ]);
-  assert.equal(first.emitted.length, 0);
+  assert.equal( first.emitted.some(([event]) => event === "player-moved"), false, );
 
   first.emitted.length = 0;
   second.emitted.length = 0;
@@ -251,7 +247,7 @@ test("movement and presence broadcasts are isolated to the current world", () =>
     },
   ]);
   assert.equal(third.emitted.length, 0);
-  assert.equal(first.emitted.length, 0);
+  assert.equal( first.emitted.some(([event]) => event === "player-moved"), false, ); 
 });
 
 test("leave-world removes the player, notifies peers, and deletes an empty world", () => {

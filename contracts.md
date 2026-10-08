@@ -555,3 +555,19 @@ The workspace UI should expose only meaningful interactions and make active stat
 - Status surfaces such as connection state and people count are not presented as interactive controls.
 - UI labels must not imply that WebRTC peer audio is already active.
 - These are presentation and interaction rules; they do not change the Socket.io or movement contracts.
+
+## 19. Proximity System — 2026-10-08
+
+The server now maintains authoritative proximity state for players in the same world as the first step toward spatial audio.
+
+- The authoritative proximity threshold is **90 world units**.
+- Distance uses Euclidean distance between player `(x, y)` coordinates.
+- Players are considered within proximity when distance is **<= 90u**.
+- Proximity state is tracked per world as canonical unordered player pairs.
+- The server evaluates proximity when a player joins a world and after each accepted movement update.
+- `proximity-entered` is emitted to both members when a pair changes from outside the threshold to inside it.
+- `proximity-left` is emitted to both members when a pair changes from inside the threshold to outside it.
+- Payload shape is `{ playerId: string }`, identifying the other member from the receiver's perspective.
+- When a player leaves or disconnects, active pairs involving that player are cleared and the remaining member receives `proximity-left`.
+- Proximity events are scoped to the current world and are not emitted across worlds.
+- These events establish nearby-player state only. They do not establish, imply, or simulate WebRTC peer audio.
