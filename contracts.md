@@ -571,3 +571,111 @@ The server now maintains authoritative proximity state for players in the same w
 - When a player leaves or disconnects, active pairs involving that player are cleared and the remaining member receives `proximity-left`.
 - Proximity events are scoped to the current world and are not emitted across worlds.
 - These events establish nearby-player state only. They do not establish, imply, or simulate WebRTC peer audio.
+
+## 20. WebRTC Signaling & Lifecycle Contracts — 2026-10-08
+
+This section defines the Week 3 bridge between the authoritative proximity layer, the Socket.io server, and the client-side WebRTC lifecycle. The server routes signaling messages only; it does not handle media, SDP processing, audio streams, or peer connection state.
+
+### Initiation rule
+
+When two clients receive `proximity-entered` for the same pair, exactly one client must create the WebRTC offer.
+
+- Compare the two public `playerId` values using a deterministic lexicographic/alphanumeric comparison.
+- The client with the lexicographically lower `playerId` is the **offerer**.
+- The client with the higher `playerId` is the **answerer**.
+- This rule prevents both clients from independently creating offers when the same proximity event reaches both sides and avoids offer glare.
+- `socket.id` remains server-only and is not exposed to clients. The server may use socket IDs internally for routing.
+- The offerer creates an `RTCPeerConnection`, creates the SDP offer, sets its local description, and sends `webrtc-offer` to the other player.
+- The answerer creates its peer connection when handling the offer, sets the remote description, creates the SDP answer, sets its local description, and sends `webrtc-answer` back to the offerer.
+
+### Signaling flow
+
+All signaling payloads identify the intended peer with the public `playerId`. The server resolves that ID to the current socket and forwards the message unchanged to the target client. The server must not inspect or modify SDP or ICE contents.
+
+```ts
+interface WebRTCOffer {
+  targetPlayerId: string;
+  fromPlayerId: string;
+  sdp: RTCSessionDescriptionInit;
+}
+
+interface WebRTCAnswer {
+  targetPlayerId: string;
+  fromPlayerId: string;
+  sdp: RTCSessionDescriptionInit;
+}
+
+interface WebRTCICECandidate {
+  targetPlayerId: string;
+  fromPlayerId: string;
+  candidate: RTCIceCandidateInit;
+}
+```
+
+### Socket.io events
+
+| Event | Direction | Payload | Server behavior |
+| --- | --- | --- | --- |
+| `webrtc-offer` | Client → Server → Client | `WebRTCOffer` | Resolve `targetPlayerId` in the sender's world and forward to that player's socket. |
+| `webrtc-answer` | Client → Server → Client | `WebRTCAnswer` | Resolve `targetPlayerId` in the sender's world and forward to that player's socket. |
+| `webrtc-ice-candidate` | Client → Server → Client | `WebRTCICECandidate` | Resolve `targetPlayerId` in the sender's world and forward to that player's socket. |
+
+The server must reject or ignore signaling attempts when the sender is not joined to a world, the target does not exist in the sender's current world, or the target is the sender. Signaling must never cross world boundaries.
+
+### Teardown flow
+
+`proximity-left` is the authoritative trigger for ending the nearby audio relationship.
+
+- When a client receives `proximity-left`, it must immediately close and remove the corresponding `RTCPeerConnection` for the indicated `playerId`.
+- The client must stop/clear peer-specific event handlers and remove the peer from its active WebRTC connection state.
+- No additional server signaling event is required to tear down a connection after `proximity-left`.
+- A later `proximity-entered` for the same pair starts a fresh WebRTC negotiation using the deterministic offerer rule above.
+- A player leave/disconnect already produces the remaining client's `proximity-left`, so the same cleanup path applies.
+
+### Routing errors
+
+If the server cannot route a valid signaling message because the target is disconnected or no longer exists in the sender's current world, the server sends the sender:
+
+```ts
+interface WebRTCSignalingError {
+  code: "TARGET_NOT_FOUND" | "NOT_IN_WORLD" | "INVALID_TARGET";
+  message: string;
+  targetPlayerId?: string;
+}
+```
+
+The corresponding Socket.io event is:
+
+```text
+webrtc-signaling-error
+```
+
+The server must not broadcast routing errors to other world members. `TARGET_NOT_FOUND` covers a target that was valid when the relationship was established but has since disconnected or left the world. `NOT_IN_WORLD` covers a sender that is not currently joined. `INVALID_TARGET` covers self-targeting or an otherwise invalid target identifier.
+
+### Lifecycle boundary
+
+The Week 3 signaling layer is transport and lifecycle coordination only:
+
+```text
+proximity-entered
+      │
+      ▼
+Deterministic offerer selection
+      │
+      ▼
+webrtc-offer → webrtc-answer
+      │
+      ▼
+webrtc-ice-candidate ↔ webrtc-ice-candidate
+      │
+      ▼
+Client-side RTCPeerConnection
+      │
+      ▼
+proximity-left
+      │
+      ▼
+Client-side peer connection cleanup
+```
+
+WebRTC media streams, microphone handling, audio mixing, distance attenuation, and connection recovery remain client-side responsibilities of the voice implementation and are not handled by the Socket.io server.
