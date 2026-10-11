@@ -35,6 +35,14 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
 
     if (!audioContextRef.current || audioContextRef.current.state === "closed") {
       audioContextRef.current = new AudioContext({ latencyHint: "interactive" });
+      audioContextRef.current.addEventListener("statechange", () => {
+        console.debug("[webrtc] AudioContext state", {
+          state: audioContextRef.current?.state,
+        });
+      });
+      console.debug("[webrtc] AudioContext created", {
+        state: audioContextRef.current.state,
+      });
     }
 
     if (audioContextRef.current.state === "suspended") {
@@ -45,6 +53,9 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       }
     }
 
+    console.debug("[webrtc] AudioContext ready", {
+      state: audioContextRef.current.state,
+    });
     return audioContextRef.current;
   }, []);
 
@@ -186,8 +197,24 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       // streamless track event. Always build a stream so remote audio is not dropped.
       const stream = event.streams[0] || new MediaStream([event.track]);
 
+      event.track.addEventListener("mute", () => {
+        console.warn("[webrtc] remote audio track muted", { remotePlayerId });
+      });
+      event.track.addEventListener("unmute", () => {
+        console.debug("[webrtc] remote audio track unmuted", {
+          remotePlayerId,
+          readyState: event.track.readyState,
+        });
+      });
+      event.track.addEventListener("ended", () => {
+        console.warn("[webrtc] remote audio track ended", { remotePlayerId });
+      });
+
       const context = await ensureAudioContext();
-      if (!context) return;
+      if (!context) {
+        console.warn("[webrtc] no AudioContext available for remote track", { remotePlayerId });
+        return;
+      }
 
       peer.audio?.source?.disconnect();
       peer.audio?.gain?.disconnect();
@@ -210,6 +237,17 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
 
       peer.audio = { source, gain };
 
+      console.debug("[webrtc] remote audio graph connected", {
+        remotePlayerId,
+        contextState: context.state,
+        trackState: event.track.readyState,
+        trackMuted: event.track.muted,
+        streamAudioTracks: stream.getAudioTracks().length,
+        remotePlayerFound: Boolean(remote),
+        distance: remote ? Math.round(distance) : null,
+        gain: Number(initialGain.toFixed(3)),
+      });
+
       if (context.state === "suspended") {
         console.warn("[webrtc] AudioContext is still suspended after remote track", {
           remotePlayerId,
@@ -219,8 +257,25 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
 
     const track = micStreamRef.current?.getAudioTracks?.()[0];
     if (track) {
-      transceiver.sender.replaceTrack(track).catch((error) => {
+      console.debug("[webrtc] attaching local microphone track", {
+        remotePlayerId,
+        enabled: track.enabled,
+        muted: track.muted,
+        readyState: track.readyState,
+      });
+      transceiver.sender.replaceTrack(track).then(() => {
+        console.debug("[webrtc] local microphone track attached", {
+          remotePlayerId,
+          enabled: track.enabled,
+          muted: track.muted,
+          readyState: track.readyState,
+        });
+      }).catch((error) => {
         console.warn("[webrtc] initial microphone track attach failed", error);
+      });
+    } else {
+      console.warn("[webrtc] no local microphone track when peer was created", {
+        remotePlayerId,
       });
     }
 
@@ -526,6 +581,12 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
         peer.audio.gain.context.currentTime,
         0.04,
       );
+      console.debug("[webrtc] remote audio gain updated", {
+        remotePlayerId,
+        distance: Math.round(distance),
+        gain: Number(gain.toFixed(3)),
+        contextState: peer.audio.gain.context.state,
+      });
     }
   }, [localPosition, remotePlayers]);
 
