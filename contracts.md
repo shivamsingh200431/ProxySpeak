@@ -690,8 +690,8 @@ The client now implements the first end-to-end WebRTC audio lifecycle on top of 
 - Each peer connection uses an audio sendrecv transceiver so the connection can be established before microphone permission is granted.
 - When a local microphone stream exists, its audio track is attached to the peer's audio sender with RTCRtpSender.replaceTrack.
 - The client forwards ICE candidates through the existing webrtc-ice-candidate Socket.io event.
-- Remote audio received through ontrack is routed through the Web Audio API using a MediaStreamAudioSourceNode and GainNode.
-- Remote voice gain uses the same authoritative 90u proximity radius: gain is 1 - distance / 90, clamped to 0..1.
+- Remote audio received through ontrack is attached to an unmuted HTMLAudioElement with an explicit playback attempt; autoplay failures are logged and retried after a user gesture.
+- Remote voice volume uses the same authoritative 90u proximity radius: volume is 1 - distance / 90, clamped to 0..1.
 - proximity-left immediately closes and removes the corresponding peer connection and audio nodes.
 - Peer connections are also cleaned up on failed/closed connection state and when the workspace WebRTC hook unmounts.
 - The server remains signaling-only; peer media and audio attenuation remain client-side.
@@ -721,10 +721,10 @@ The first browser validation of the Week 3 client WebRTC implementation exposed 
 
 ### Audio context lifecycle
 
-- Remote audio is routed through the existing Web Audio GainNode path only; no hidden zero-volume HTML audio element is required.
-- The client uses an interactive-latency AudioContext for voice playback and microphone analysis.
-- The client attempts to resume a suspended AudioContext after user interaction so browser autoplay restrictions do not silently suppress remote audio.
-- AudioContext state and remote-track arrival are logged for browser troubleshooting.
+- Remote audio uses an unmuted HTMLAudioElement with an explicit play() attempt; playback rejections log their error name and message.
+- The AudioContext is retained for local microphone analysis, not as the remote playback sink.
+- A pointer or keyboard gesture retries any paused remote audio element and resumes a suspended AudioContext.
+- Remote element volume is updated from current proximity distance and logs volume, paused state, and readyState.
 
 ### Local microphone activity
 
