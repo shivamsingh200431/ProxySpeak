@@ -18,6 +18,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
   const pendingIceRef = useRef(new Map());
   const remotePlayersRef = useRef(remotePlayers);
   const micStreamRef = useRef(micStream);
+  const localPositionRef = useRef(localPosition);
   const audioContextRef = useRef(null);
   const micAnalyserRef = useRef(null);
   const micSourceRef = useRef(null);
@@ -26,6 +27,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
 
   useEffect(() => { remotePlayersRef.current = remotePlayers; }, [remotePlayers]);
   useEffect(() => { micStreamRef.current = micStream; }, [micStream]);
+  useEffect(() => { localPositionRef.current = localPosition; }, [localPosition]);
 
   const ensureAudioContext = useCallback(async () => {
     const AudioContext = getAudioContextConstructor();
@@ -117,6 +119,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       audio: null,
       audioTransceiver: null,
       makingOffer: false,
+      offerSent: false,
     };
 
     peersRef.current.set(remotePlayerId, peer);
@@ -171,13 +174,17 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     };
 
     connection.ontrack = async (event) => {
-      const stream = event.streams[0];
-      if (!stream) return;
-
       console.debug("[webrtc] remote audio track received", {
         remotePlayerId,
         trackId: event.track?.id,
+        kind: event.track?.kind,
+        readyState: event.track?.readyState,
+        streamCount: event.streams.length,
       });
+
+      // replaceTrack() on an addTransceiver-created sender can produce a
+      // streamless track event. Always build a stream so remote audio is not dropped.
+      const stream = event.streams[0] || new MediaStream([event.track]);
 
       const context = await ensureAudioContext();
       if (!context) return;
@@ -189,8 +196,9 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       const gain = context.createGain();
 
       const remote = remotePlayersRef.current.find((item) => item.playerId === remotePlayerId);
+      const currentPosition = localPositionRef.current;
       const distance = remote
-        ? Math.hypot(localPosition.x - remote.x, localPosition.y - remote.y)
+        ? Math.hypot(currentPosition.x - remote.x, currentPosition.y - remote.y)
         : PROXIMITY_AUDIO_RADIUS;
       const initialGain = Math.max(
         0,
@@ -222,9 +230,14 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
   const createOffer = useCallback(async (remotePlayerId) => {
     const peer = getOrCreatePeer(remotePlayerId);
 
-    if (peer.connection.signalingState !== "stable" || peer.makingOffer) return;
+    if (
+      peer.offerSent ||
+      peer.connection.signalingState !== "stable" ||
+      peer.makingOffer
+    ) return;
 
     peer.makingOffer = true;
+    peer.offerSent = true;
 
     try {
       const offer = await peer.connection.createOffer();
