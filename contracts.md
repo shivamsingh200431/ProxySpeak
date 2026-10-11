@@ -760,3 +760,26 @@ These logs are diagnostic only and do not form a new application/network contrac
 ### Scope boundary
 
 This milestone does not add TURN infrastructure, persistent device preferences, speaking indicators for remote people, server-side audio processing, or a remote voice activity protocol. A successful local microphone indicator proves capture, not end-to-end peer audio.
+
+## 23. Week 3 Mesh Stability & Live Canvas Synchronization — 2026-10-12
+
+### Peer lifecycle safety
+
+- Each nearby remote person has at most one active `RTCPeerConnection` per client, keyed by public `playerId`.
+- Cleanup may optionally be scoped to the exact peer object. An asynchronous failure or signaling callback from an older connection must not remove a newer connection that has reused the same `playerId`.
+- `proximity-left` remains pair-specific and closes only the connection keyed to the other person's public `playerId`; it must not stop the shared local microphone stream or affect other peer connections.
+- If a peer enters the `failed` state while the pair is still within 90u, the deterministic offerer may initiate one bounded replacement negotiation. The answerer closes its failed connection and waits for that offer. A successful connection or a new proximity entry resets the retry budget.
+- A replacement negotiation must use a new peer connection and the existing lexicographic offerer rule. The signaling server remains a router and does not relay media.
+
+### Microphone and mesh boundary
+
+- The local microphone stream is shared as a source across independent peer connections. Closing one peer must not stop or disable the local stream or the senders attached to other peers.
+- Track attachment is reconciled when the microphone stream becomes available or changes, including when a peer was created before microphone permission was granted.
+- A live ICE connection is not proof that microphone samples are being sent. Debugging must distinguish track existence/enabled state, RTP transmission, remote track delivery, and audio-element playback.
+
+### Live remote movement rendering
+
+- The `player-moved` socket handler updates React remote-player state immutably by replacing only the matching player object.
+- `WorldCanvas` stores current props in refs and sleeps its animation loop when the camera has settled. Therefore both local-position and remote-player-array changes must explicitly wake the canvas renderer.
+- Updating a canvas data ref without scheduling a frame is insufficient; remote avatar coordinates must repaint without requiring local movement.
+- This change preserves the existing `player-moved` payload `{ playerId, x, y }` and does not add a new network event.
