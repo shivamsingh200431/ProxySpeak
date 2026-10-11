@@ -735,6 +735,13 @@ The first browser validation of the Week 3 client WebRTC implementation exposed 
 - Voice activity state is cleared when the microphone stream is removed or the WebRTC hook is unmounted.
 - Reduced-motion users receive the same state indication without transform animation.
 
+### Targeted silent-audio diagnostics
+
+- When the Web Audio graph is created for a remote track, the client logs AudioContext state, track state, whether the remote player position was found, measured distance, and initial gain.
+- The client logs remote track mute, unmute, and ended events, plus AudioContext state changes.
+- Local microphone sender attachment logs whether a track exists and its enabled, muted, and readyState values.
+- Position-driven gain updates log the current distance, gain, and AudioContext state. These diagnostics help separate missing microphone transmission, missing remote media, autoplay suspension, and zero-distance gain from signaling failures.
+
 ### Diagnostics
 
 The client logs the following WebRTC lifecycle signals in the browser console:
