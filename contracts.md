@@ -713,6 +713,12 @@ The first browser validation of the Week 3 client WebRTC implementation exposed 
 - A rejected candidate is logged for diagnosis but does not by itself destroy an otherwise valid peer connection.
 - The signaling server continues to forward ICE payloads unchanged; candidate ordering is a client lifecycle responsibility.
 
+### Remote track delivery and negotiation lifecycle
+
+- A remote `RTCTrackEvent` may have an empty `streams` array when the sender uses an `addTransceiver()` sender with `replaceTrack()`. The client must handle streamless audio tracks by creating a `MediaStream` containing `event.track`; it must not silently discard the track.
+- The deterministic offerer creates at most one initial offer per peer-connection lifecycle. Position updates and remote-player movement updates must not repeatedly renegotiate an already-established peer. A new offer is permitted after the prior peer is closed and a fresh peer is created following a new proximity entry.
+- The `ontrack` diagnostic is emitted before stream construction so streamless track delivery remains observable.
+
 ### Audio context lifecycle
 
 - Remote audio is routed through the existing Web Audio GainNode path only; no hidden zero-volume HTML audio element is required.
