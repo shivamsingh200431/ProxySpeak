@@ -179,13 +179,13 @@ export default function WorldCanvas({
   useEffect(() => {
     if (!renderRef.current) return;
     needsRenderRef.current = true;
-    // The movement hook publishes positions through React state. Wake the
-    // renderer for that frame; camera smoothing continues until settled.
+    // Wake the sleeping canvas loop for local movement OR remote-player
+    // updates. Updating playersRef alone does not schedule a frame.
     const frame = requestAnimationFrame(() => {
       if (renderRef.current) renderRef.current();
     });
     return () => cancelAnimationFrame(frame);
-  }, [position]);
+  }, [position, remotePlayers]);
 
   return <div ref={containerRef} className="canvas-container"><canvas ref={canvasRef} className="world-canvas" /></div>;
 }
