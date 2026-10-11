@@ -83,6 +83,10 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       // The connection may already be closed by the browser.
     }
 
+    if (peer.audio?.element) {
+      peer.audio.element.pause();
+      peer.audio.element.srcObject = null;
+    }
     peer.audio?.source?.disconnect();
     peer.audio?.gain?.disconnect();
     pendingIceRef.current.delete(remotePlayerId);
@@ -210,17 +214,10 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
         console.warn("[webrtc] remote audio track ended", { remotePlayerId });
       });
 
-      const context = await ensureAudioContext();
-      if (!context) {
-        console.warn("[webrtc] no AudioContext available for remote track", { remotePlayerId });
-        return;
+      if (peer.audio?.element) {
+        peer.audio.element.pause();
+        peer.audio.element.srcObject = null;
       }
-
-      peer.audio?.source?.disconnect();
-      peer.audio?.gain?.disconnect();
-
-      const source = context.createMediaStreamSource(stream);
-      const gain = context.createGain();
 
       const remote = remotePlayersRef.current.find((item) => item.playerId === remotePlayerId);
       const currentPosition = localPositionRef.current;
@@ -232,25 +229,41 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
         Math.min(1, 1 - distance / PROXIMITY_AUDIO_RADIUS),
       );
 
-      gain.gain.value = initialGain;
-      source.connect(gain).connect(context.destination);
+      // Use a media element for remote playback so autoplay failures are
+      // observable and can be retried after a user gesture.
+      const element = new Audio();
+      element.autoplay = true;
+      element.playsInline = true;
+      element.muted = false;
+      element.volume = initialGain;
+      element.srcObject = stream;
+      peer.audio = { element };
 
-      peer.audio = { source, gain };
-
-      console.debug("[webrtc] remote audio graph connected", {
+      console.debug("[webrtc] remote audio element attached", {
         remotePlayerId,
-        contextState: context.state,
         trackState: event.track.readyState,
         trackMuted: event.track.muted,
         streamAudioTracks: stream.getAudioTracks().length,
         remotePlayerFound: Boolean(remote),
         distance: remote ? Math.round(distance) : null,
-        gain: Number(initialGain.toFixed(3)),
+        volume: Number(initialGain.toFixed(3)),
+        paused: element.paused,
+        muted: element.muted,
       });
 
-      if (context.state === "suspended") {
-        console.warn("[webrtc] AudioContext is still suspended after remote track", {
+      try {
+        await element.play();
+        console.debug("[webrtc] remote audio playback started", {
           remotePlayerId,
+          paused: element.paused,
+          volume: element.volume,
+          readyState: element.readyState,
+        });
+      } catch (error) {
+        console.warn("[webrtc] remote audio playback blocked", {
+          remotePlayerId,
+          name: error?.name,
+          message: error?.message,
         });
       }
     };
@@ -557,6 +570,23 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
           console.warn("[webrtc] AudioContext resume failed", error);
         });
       }
+
+      for (const [remotePlayerId, peer] of peersRef.current) {
+        const element = peer.audio?.element;
+        if (!element || !element.paused) continue;
+        element.play().then(() => {
+          console.debug("[webrtc] remote audio playback resumed after gesture", {
+            remotePlayerId,
+            volume: element.volume,
+          });
+        }).catch((error) => {
+          console.warn("[webrtc] remote audio playback still blocked", {
+            remotePlayerId,
+            name: error?.name,
+            message: error?.message,
+          });
+        });
+      }
     };
 
     document.addEventListener("pointerup", resumeFromUserGesture);
@@ -571,21 +601,18 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
   useEffect(() => {
     for (const [remotePlayerId, peer] of peersRef.current) {
       const remote = remotePlayersRef.current.find((item) => item.playerId === remotePlayerId);
-      if (!remote || !peer.audio?.gain) continue;
+      if (!remote || !peer.audio?.element) continue;
 
       const distance = Math.hypot(localPosition.x - remote.x, localPosition.y - remote.y);
-      const gain = Math.max(0, Math.min(1, 1 - distance / PROXIMITY_AUDIO_RADIUS));
+      const volume = Math.max(0, Math.min(1, 1 - distance / PROXIMITY_AUDIO_RADIUS));
 
-      peer.audio.gain.gain.setTargetAtTime(
-        gain,
-        peer.audio.gain.context.currentTime,
-        0.04,
-      );
-      console.debug("[webrtc] remote audio gain updated", {
+      peer.audio.element.volume = volume;
+      console.debug("[webrtc] remote audio volume updated", {
         remotePlayerId,
         distance: Math.round(distance),
-        gain: Number(gain.toFixed(3)),
-        contextState: peer.audio.gain.context.state,
+        volume: Number(volume.toFixed(3)),
+        paused: peer.audio.element.paused,
+        readyState: peer.audio.element.readyState,
       });
     }
   }, [localPosition, remotePlayers]);
@@ -605,6 +632,12 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     peersRef.current.clear();
     pendingIceRef.current.clear();
 
+    for (const peer of peersRef.current.values()) {
+      if (peer.audio?.element) {
+        peer.audio.element.pause();
+        peer.audio.element.srcObject = null;
+      }
+    }
     audioContextRef.current?.close().catch(() => {});
     audioContextRef.current = null;
   }, [clearVoiceIndicator]);
