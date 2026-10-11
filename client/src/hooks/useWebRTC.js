@@ -24,6 +24,8 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
   const micSourceRef = useRef(null);
   const visualizerFrameRef = useRef(null);
   const voiceActiveRef = useRef(false);
+  const recoveryAttemptsRef = useRef(new Map());
+  const recoverOfferRef = useRef(null);
 
   useEffect(() => { remotePlayersRef.current = remotePlayers; }, [remotePlayers]);
   useEffect(() => { micStreamRef.current = micStream; }, [micStream]);
@@ -67,9 +69,11 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     voiceActiveRef.current = false;
   }, []);
 
-  const closePeer = useCallback((remotePlayerId) => {
+  const closePeer = useCallback((remotePlayerId, expectedPeer = null) => {
     const peer = peersRef.current.get(remotePlayerId);
-    if (!peer) return;
+    // Async callbacks from an older RTCPeerConnection must never close a
+    // replacement connection created for the same public playerId.
+    if (!peer || (expectedPeer && peer !== expectedPeer)) return;
 
     peer.connection.onicecandidate = null;
     peer.connection.ontrack = null;
@@ -178,13 +182,32 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     };
 
     connection.onconnectionstatechange = () => {
-      console.debug("[webrtc] peer state", {
-        remotePlayerId,
-        state: connection.connectionState,
-      });
+      const state = connection.connectionState;
+      console.debug("[webrtc] peer state", { remotePlayerId, state });
 
-      if (["failed", "closed"].includes(connection.connectionState)) {
-        closePeer(remotePlayerId);
+      if (state === "connected") {
+        recoveryAttemptsRef.current.delete(remotePlayerId);
+      }
+
+      if (state === "failed") {
+        const attempts = recoveryAttemptsRef.current.get(remotePlayerId) || 0;
+        closePeer(remotePlayerId, peer);
+
+        // Recovery remains pairwise: only the deterministic offerer starts a
+        // replacement negotiation, and only once until that peer connects.
+        const remote = remotePlayersRef.current.find(
+          (item) => item.playerId === remotePlayerId,
+        );
+        const local = localPositionRef.current;
+        const stillNearby = remote &&
+          Math.hypot(local.x - remote.x, local.y - remote.y) <= PROXIMITY_AUDIO_RADIUS;
+
+        if (stillNearby && shouldOffer(playerId, remotePlayerId) && attempts < 1) {
+          recoveryAttemptsRef.current.set(remotePlayerId, attempts + 1);
+          queueMicrotask(() => recoverOfferRef.current?.(remotePlayerId));
+        }
+      } else if (state === "closed") {
+        closePeer(remotePlayerId, peer);
       }
     };
 
@@ -320,12 +343,19 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       console.debug("[webrtc] offer sent", { remotePlayerId });
     } catch (error) {
       console.error("[webrtc] offer creation failed", { remotePlayerId, error });
-      closePeer(remotePlayerId);
+      closePeer(remotePlayerId, peer);
       throw error;
     } finally {
       peer.makingOffer = false;
     }
   }, [closePeer, getOrCreatePeer, playerId, socket]);
+
+  useEffect(() => {
+    recoverOfferRef.current = createOffer;
+    return () => {
+      if (recoverOfferRef.current === createOffer) recoverOfferRef.current = null;
+    };
+  }, [createOffer]);
 
   useEffect(() => {
     if (!playerId || typeof RTCPeerConnection === "undefined") return;
@@ -349,6 +379,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     const onProximityEntered = ({ playerId: remotePlayerId }) => {
       if (!remotePlayerId || remotePlayerId === playerId) return;
 
+      recoveryAttemptsRef.current.delete(remotePlayerId);
       getOrCreatePeer(remotePlayerId);
 
       if (shouldOffer(playerId, remotePlayerId)) {
@@ -357,7 +388,9 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     };
 
     const onProximityLeft = ({ playerId: remotePlayerId }) => {
+      if (!remotePlayerId || remotePlayerId === playerId) return;
       pendingIceRef.current.delete(remotePlayerId);
+      recoveryAttemptsRef.current.delete(remotePlayerId);
       closePeer(remotePlayerId);
       console.debug("[webrtc] proximity left; peer closed", { remotePlayerId });
     };
@@ -386,7 +419,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
           remotePlayerId: payload.fromPlayerId,
           error,
         });
-        closePeer(payload.fromPlayerId);
+        closePeer(payload.fromPlayerId, peer);
       }
     };
 
@@ -405,7 +438,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
           remotePlayerId: payload.fromPlayerId,
           error,
         });
-        closePeer(payload.fromPlayerId);
+        closePeer(payload.fromPlayerId, peer);
       }
     };
 
