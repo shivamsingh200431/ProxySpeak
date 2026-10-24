@@ -654,24 +654,16 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     cancelAnimationFrame(visualizerFrameRef.current);
     clearVoiceIndicator();
 
-    for (const peer of peersRef.current.values()) {
-      try {
-        peer.connection.close();
-      } catch {
-        // Ignore cleanup errors.
-      }
+    // closePeer tears down both the RTCPeerConnection and its playback sink.
+    // Do this before clearing the map; clearing first would make the loop below
+    // unable to find and stop the audio elements, allowing orphaned audio to
+    // survive a hook unmount/reinitialization.
+    for (const remotePlayerId of [...peersRef.current.keys()]) {
+      closePeer(remotePlayerId);
     }
 
-    peersRef.current.clear();
     pendingIceRef.current.clear();
-
-    for (const peer of peersRef.current.values()) {
-      if (peer.audio?.element) {
-        peer.audio.element.pause();
-        peer.audio.element.srcObject = null;
-      }
-    }
     audioContextRef.current?.close().catch(() => {});
     audioContextRef.current = null;
-  }, [clearVoiceIndicator]);
+  }, [clearVoiceIndicator, closePeer]);
 }
