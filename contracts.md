@@ -224,9 +224,9 @@ Audio will be introduced only after movement and presence synchronization are st
 
 ### Proximity design decision
 
-The initial planned proximity threshold is **90 world units**.
+The landing-page demonstration uses a **90 world unit** presentation threshold.
 
-This value is currently used by the frontend only as a visual radius/prototype. It does not yet establish an active voice connection, server-side proximity filtering, or WebRTC behavior.
+The current workspace uses a separate **160 world unit** visual radius for the prototype world. Neither value establishes an active voice connection, server-side proximity filtering, or WebRTC behavior. The authoritative voice threshold will be defined when the real proximity/audio milestone is implemented.
 
 When the proximity system is implemented, the server/client contract will define how distance is calculated and how entering/leaving the threshold affects nearby-player state.
 
@@ -281,7 +281,7 @@ The first audio implementation should prioritize reliable connections, understan
 - Define world coordinate rules
 - Calculate player distance
 - Identify nearby players
-- Apply the 90-unit proximity threshold
+- Define and apply the authoritative voice proximity threshold
 - Handle entering and leaving proximity range
 
 ### Milestone 4 — Voice Communication
@@ -542,3 +542,160 @@ The workspace UI follows the supplied reference direction.
 - The microphone control requests local microphone permission and toggles local track state; it does **not** yet establish peer WebRTC audio.
 - The world and avatars use the current stickman visual language.
 - The workspace world remains visually calm and contained within its rounded viewport while glass UI overlays provide context.
+
+## 18. Workspace UI Completion — 2026-10-04
+
+The workspace UI should expose only meaningful interactions and make active states visually explicit.
+
+- The current world name in the top bar is a status surface, not a dropdown. It must not look like an unimplemented menu.
+- People, Map, Invite, and Settings controls expose their active state when the corresponding panel is open and toggle the panel closed when activated again.
+- The Lounge item represents the current workspace location and is presented as a non-interactive current-location indicator until room navigation is implemented.
+- The bottom dock is content-driven. The microphone control is shown only when the browser exposes microphone access; its current behavior remains local microphone permission/track control and is not peer audio.
+- The workspace mini-map represents all nine current prototype rooms and displays the local user plus server-sourced remote people.
+- Status surfaces such as connection state and people count are not presented as interactive controls.
+- UI labels must not imply that WebRTC peer audio is already active.
+- These are presentation and interaction rules; they do not change the Socket.io or movement contracts.
+
+## 19. Proximity System — 2026-10-08
+
+The server now maintains authoritative proximity state for players in the same world as the first step toward spatial audio.
+
+- The authoritative proximity threshold is **90 world units**.
+- Distance uses Euclidean distance between player `(x, y)` coordinates.
+- Players are considered within proximity when distance is **<= 90u**.
+- Proximity state is tracked per world as canonical unordered player pairs.
+- The server evaluates proximity when a player joins a world and after each accepted movement update.
+- `proximity-entered` is emitted to both members when a pair changes from outside the threshold to inside it.
+- `proximity-left` is emitted to both members when a pair changes from inside the threshold to outside it.
+- Payload shape is `{ playerId: string }`, identifying the other member from the receiver's perspective.
+- When a player leaves or disconnects, active pairs involving that player are cleared and the remaining member receives `proximity-left`.
+- Proximity events are scoped to the current world and are not emitted across worlds.
+- These events establish nearby-player state only. They do not establish, imply, or simulate WebRTC peer audio.
+
+## 20. WebRTC Signaling & Lifecycle Contracts — 2026-10-08
+
+This section defines the Week 3 bridge between the authoritative proximity layer, the Socket.io server, and the client-side WebRTC lifecycle. The server routes signaling messages only; it does not handle media, SDP processing, audio streams, or peer connection state.
+
+### Initiation rule
+
+When two clients receive `proximity-entered` for the same pair, exactly one client must create the WebRTC offer.
+
+- Compare the two public `playerId` values using a deterministic lexicographic/alphanumeric comparison.
+- The client with the lexicographically lower `playerId` is the **offerer**.
+- The client with the higher `playerId` is the **answerer**.
+- This rule prevents both clients from independently creating offers when the same proximity event reaches both sides and avoids offer glare.
+- `socket.id` remains server-only and is not exposed to clients. The server may use socket IDs internally for routing.
+- The offerer creates an `RTCPeerConnection`, creates the SDP offer, sets its local description, and sends `webrtc-offer` to the other player.
+- The answerer creates its peer connection when handling the offer, sets the remote description, creates the SDP answer, sets its local description, and sends `webrtc-answer` back to the offerer.
+
+### Signaling flow
+
+All signaling payloads identify the intended peer with the public `playerId`. The server resolves that ID to the current socket and forwards the message unchanged to the target client. The server must not inspect or modify SDP or ICE contents.
+
+```ts
+interface WebRTCOffer {
+  targetPlayerId: string;
+  fromPlayerId: string;
+  sdp: RTCSessionDescriptionInit;
+}
+
+interface WebRTCAnswer {
+  targetPlayerId: string;
+  fromPlayerId: string;
+  sdp: RTCSessionDescriptionInit;
+}
+
+interface WebRTCICECandidate {
+  targetPlayerId: string;
+  fromPlayerId: string;
+  candidate: RTCIceCandidateInit;
+}
+```
+
+### Socket.io events
+
+| Event | Direction | Payload | Server behavior |
+| --- | --- | --- | --- |
+| `webrtc-offer` | Client → Server → Client | `WebRTCOffer` | Resolve `targetPlayerId` in the sender's world and forward to that player's socket. |
+| `webrtc-answer` | Client → Server → Client | `WebRTCAnswer` | Resolve `targetPlayerId` in the sender's world and forward to that player's socket. |
+| `webrtc-ice-candidate` | Client → Server → Client | `WebRTCICECandidate` | Resolve `targetPlayerId` in the sender's world and forward to that player's socket. |
+
+The server must reject or ignore signaling attempts when the sender is not joined to a world, the target does not exist in the sender's current world, or the target is the sender. Signaling must never cross world boundaries.
+
+### Teardown flow
+
+`proximity-left` is the authoritative trigger for ending the nearby audio relationship.
+
+- When a client receives `proximity-left`, it must immediately close and remove the corresponding `RTCPeerConnection` for the indicated `playerId`.
+- The client must stop/clear peer-specific event handlers and remove the peer from its active WebRTC connection state.
+- No additional server signaling event is required to tear down a connection after `proximity-left`.
+- A later `proximity-entered` for the same pair starts a fresh WebRTC negotiation using the deterministic offerer rule above.
+- A player leave/disconnect already produces the remaining client's `proximity-left`, so the same cleanup path applies.
+
+### Routing errors
+
+If the server cannot route a valid signaling message because the target is disconnected or no longer exists in the sender's current world, the server sends the sender:
+
+```ts
+interface WebRTCSignalingError {
+  code: "TARGET_NOT_FOUND" | "NOT_IN_WORLD" | "INVALID_TARGET";
+  message: string;
+  targetPlayerId?: string;
+}
+```
+
+The corresponding Socket.io event is:
+
+```text
+webrtc-signaling-error
+```
+
+The server must not broadcast routing errors to other world members. `TARGET_NOT_FOUND` covers a target that was valid when the relationship was established but has since disconnected or left the world. `NOT_IN_WORLD` covers a sender that is not currently joined. `INVALID_TARGET` covers self-targeting or an otherwise invalid target identifier.
+
+### Lifecycle boundary
+
+The Week 3 signaling layer is transport and lifecycle coordination only:
+
+```text
+proximity-entered
+      │
+      ▼
+Deterministic offerer selection
+      │
+      ▼
+webrtc-offer → webrtc-answer
+      │
+      ▼
+webrtc-ice-candidate ↔ webrtc-ice-candidate
+      │
+      ▼
+Client-side RTCPeerConnection
+      │
+      ▼
+proximity-left
+      │
+      ▼
+Client-side peer connection cleanup
+```
+
+WebRTC media streams, microphone handling, audio mixing, distance attenuation, and connection recovery remain client-side responsibilities of the voice implementation and are not handled by the Socket.io server.
+
+
+## 21. Client WebRTC Audio Implementation — 2026-10-08
+
+The client now implements the first end-to-end WebRTC audio lifecycle on top of the Week 3 signaling contract.
+
+- A client creates one RTCPeerConnection per nearby remote playerId.
+- The lexicographically lower public playerId remains the offerer; the higher ID is the answerer.
+- Each peer connection uses an audio sendrecv transceiver so the connection can be established before microphone permission is granted.
+- When a local microphone stream exists, its audio track is attached to the peer's audio sender with RTCRtpSender.replaceTrack.
+- The client forwards ICE candidates through the existing webrtc-ice-candidate Socket.io event.
+- Remote audio received through ontrack is routed through the Web Audio API using a MediaStreamAudioSourceNode and GainNode.
+- Remote voice gain uses the same authoritative 90u proximity radius: gain is 1 - distance / 90, clamped to 0..1.
+- proximity-left immediately closes and removes the corresponding peer connection and audio nodes.
+- Peer connections are also cleaned up on failed/closed connection state and when the workspace WebRTC hook unmounts.
+- The server remains signaling-only; peer media and audio attenuation remain client-side.
+- The browser microphone permission control remains explicit. Joining a world or merely entering proximity must not request microphone permission automatically.
+- This milestone does not define TURN infrastructure, connection retry, speaking indicators, echo cancellation configuration, or persistent audio device preferences.
+
+This section records the client implementation boundary; it does not change the server signaling event payloads defined in Section 20.

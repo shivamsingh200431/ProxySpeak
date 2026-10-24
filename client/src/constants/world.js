@@ -13,8 +13,8 @@ export const SPAWN_POSITION = {
 
 export const PLAYER_RADIUS = 14;
 
-// Planned proximity threshold documented in contracts.md.
-// This is currently used for visual feedback only.
+// Workspace presentation radius. This is visual-only until the real proximity/audio
+// milestone defines the authoritative voice threshold.
 export const AUDIO_RADIUS = 160;
 export const BOUNDARY_PADDING = 60;
 
