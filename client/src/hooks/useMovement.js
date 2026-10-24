@@ -1,23 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import {
-  WORLD_WIDTH,
-  WORLD_HEIGHT,
-  BOUNDARY_PADDING,
-  MOVE_SPEED,
-  SPAWN_POSITION
-} from "../constants/world";
+import { MOVE_SPEED, SPAWN_POSITION } from "../constants/world";
+import { canOccupy, WORLD_BOUNDS } from "../utils/worldCollision";
 
-/**
- * Custom hook to handle continuous, frame-smooth keyboard movement.
- * Tracks active keys (WASD + Arrow keys) and updates player position with
- * strict world boundary enforcement and diagonal normalization.
- */
+const PLAYER_RADIUS = 12;
+
 export function useMovement(initialPosition = SPAWN_POSITION) {
   const [position, setPosition] = useState(initialPosition);
-  const [heading, setHeading] = useState(0); // in radians
+  const [heading, setHeading] = useState(0);
   const [activeKeys, setActiveKeys] = useState({});
 
-  // Use refs to track state within the requestAnimationFrame loop
   const positionRef = useRef(initialPosition);
   const keysRef = useRef({});
   const animFrameRef = useRef(null);
@@ -30,23 +21,16 @@ export function useMovement(initialPosition = SPAWN_POSITION) {
 
   useEffect(() => {
     function handleKeyDown(e) {
-      // Ignore key events when user is typing in an input or textarea
-      if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) {
-        return;
-      }
+      if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
 
-      // Prevent browser scroll on arrow keys or space while playing
-      if (
-        ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key) &&
-        e.target === document.body
-      ) {
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key) &&
+          e.target === document.body) {
         e.preventDefault();
       }
 
       const key = e.key.toLowerCase();
       if (!keysRef.current[key]) {
         keysRef.current[key] = true;
-        // Keep a copy in React state for HUD / visual keycap highlighting
         setActiveKeys({ ...keysRef.current });
       }
     }
@@ -60,7 +44,6 @@ export function useMovement(initialPosition = SPAWN_POSITION) {
     }
 
     function handleBlur() {
-      // Clear all keys when tab loses focus to prevent stuck movement
       keysRef.current = {};
       setActiveKeys({});
     }
@@ -80,40 +63,41 @@ export function useMovement(initialPosition = SPAWN_POSITION) {
     let lastTime = performance.now();
 
     function updatePhysics(currentTime) {
-      const delta = Math.min((currentTime - lastTime) / 16.666, 2.0); // normalize against 60fps
+      // Real elapsed seconds make movement independent of display refresh rate.
+      const dt = Math.min((currentTime - lastTime) / 1000, 0.05);
       lastTime = currentTime;
 
-      const keys = keysRef.current;
       let dx = 0;
       let dy = 0;
+      const keys = keysRef.current;
 
-      if (keys["w"] || keys["arrowup"]) dy -= 1;
-      if (keys["s"] || keys["arrowdown"]) dy += 1;
-      if (keys["a"] || keys["arrowleft"]) dx -= 1;
-      if (keys["d"] || keys["arrowright"]) dx += 1;
+      if (keys.w || keys.arrowup) dy -= 1;
+      if (keys.s || keys.arrowdown) dy += 1;
+      if (keys.a || keys.arrowleft) dx -= 1;
+      if (keys.d || keys.arrowright) dx += 1;
 
-      if (dx !== 0 || dy !== 0) {
-        // Normalize diagonal movement speed
-        if (dx !== 0 && dy !== 0) {
-          const invSqrt2 = 0.70710678;
-          dx *= invSqrt2;
-          dy *= invSqrt2;
+      if (dx || dy) {
+        if (dx && dy) {
+          dx *= 0.70710678;
+          dy *= 0.70710678;
         }
 
-        const moveDistance = MOVE_SPEED * delta;
-        const currentPos = positionRef.current;
+        const distance = MOVE_SPEED * dt;
+        const current = positionRef.current;
+        const targetX = Math.max(WORLD_BOUNDS.minX, Math.min(WORLD_BOUNDS.maxX, current.x + dx * distance));
+        const targetY = Math.max(WORLD_BOUNDS.minY, Math.min(WORLD_BOUNDS.maxY, current.y + dy * distance));
 
-        const minX = BOUNDARY_PADDING;
-        const maxX = WORLD_WIDTH - BOUNDARY_PADDING;
-        const minY = BOUNDARY_PADDING;
-        const maxY = WORLD_HEIGHT - BOUNDARY_PADDING;
+        // Resolve axes independently so the player can slide along walls.
+        let nextX = current.x;
+        let nextY = current.y;
 
-        const nextX = Math.max(minX, Math.min(maxX, currentPos.x + dx * moveDistance));
-        const nextY = Math.max(minY, Math.min(maxY, currentPos.y + dy * moveDistance));
+        if (canOccupy(targetX, current.y, PLAYER_RADIUS)) nextX = targetX;
+        if (canOccupy(nextX, targetY, PLAYER_RADIUS)) nextY = targetY;
 
-        if (nextX !== currentPos.x || nextY !== currentPos.y) {
-          positionRef.current = { x: nextX, y: nextY };
-          setPosition({ x: nextX, y: nextY });
+        if (nextX !== current.x || nextY !== current.y) {
+          const next = { x: nextX, y: nextY };
+          positionRef.current = next;
+          setPosition(next);
           setHeading(Math.atan2(dy, dx));
         }
       }
@@ -122,18 +106,10 @@ export function useMovement(initialPosition = SPAWN_POSITION) {
     }
 
     animFrameRef.current = requestAnimationFrame(updatePhysics);
-
     return () => {
-      if (animFrameRef.current) {
-        cancelAnimationFrame(animFrameRef.current);
-      }
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
   }, []);
 
-  return {
-    position,
-    heading,
-    activeKeys,
-    resetPosition
-  };
+  return { position, heading, activeKeys, resetPosition };
 }
