@@ -212,6 +212,16 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     };
 
     connection.ontrack = async (event) => {
+      // A closed/replaced peer must not attach stale remote media to the
+      // current player's audio sink.
+      if (
+        peersRef.current.get(remotePlayerId) !== peer ||
+        connection.signalingState === "closed"
+      ) {
+        console.debug("[webrtc] ignoring track from stale peer", { remotePlayerId });
+        return;
+      }
+
       console.debug("[webrtc] remote audio track received", {
         remotePlayerId,
         trackId: event.track?.id,
@@ -276,6 +286,13 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
 
       try {
         await element.play();
+        // play() is asynchronous. If this peer was replaced while the
+        // browser was starting playback, dispose of the obsolete sink.
+        if (peersRef.current.get(remotePlayerId) !== peer) {
+          element.pause();
+          element.srcObject = null;
+          return;
+        }
         console.debug("[webrtc] remote audio playback started", {
           remotePlayerId,
           paused: element.paused,
