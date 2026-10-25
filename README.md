@@ -2,7 +2,7 @@
 
 A browser-based, real-time proximity audio environment where users move through a shared virtual world and communicate with nearby users through spatially-aware voice communication.
 
-> The project is being developed incrementally: first establish the multiplayer world foundation, then add proximity-based WebRTC audio.
+ > The project has an active multiplayer world, server-side proximity detection, and a peer-to-peer WebRTC audio implementation. Current work focuses on signaling resilience and cross-browser verification.
 
 ## Overview
 
@@ -18,7 +18,7 @@ ProxySpeak explores virtual communication where distance inside the world affect
 - Distance-based audio attenuation
 - Browser-based access without a native application
 
-The current implementation focuses on the frontend world prototype and backend foundation. Audio will be introduced after movement and presence synchronization are stable.
+The current implementation includes shared world presence/movement, proximity events, peer-to-peer WebRTC audio negotiation, microphone controls, and distance-based remote playback volume. Audio reliability and browser interoperability remain under active validation.
 
 ## Project Status
 
@@ -34,7 +34,7 @@ The current implementation focuses on the frontend world prototype and backend f
 
 ### Current focus
 
-Connect the frontend and backend through Socket.io and synchronize multiple connected players in the same virtual world.
+Harden WebRTC negotiation, ICE handling, peer recovery, and validate audio across supported browsers.
 
 ## Technology Stack
 
@@ -43,10 +43,10 @@ Connect the frontend and backend through Socket.io and synchronize multiple conn
 | Frontend | React, Vite, JavaScript | In use |
 | Rendering | HTML5 Canvas | In use |
 | Backend | Node.js, Express | In use |
-| Real-time communication | Socket.io | Planned / next phase |
+| Real-time communication | Socket.io | In use |
 | Persistence | MongoDB | Planned |
-| Peer-to-peer audio | WebRTC | Planned |
-| Audio processing | Web Audio API | Planned |
+| Peer-to-peer audio | WebRTC | Implemented; browser validation ongoing |
+| Audio processing | Web Audio API | In use for microphone activity visualization |
 | Scaling support | Redis | Optional future phase |
 
 ## Repository Structure
@@ -144,26 +144,28 @@ Expected response:
 
 ### Real-Time Multiplayer
 
-- [ ] Add Socket.io client integration
-- [ ] Establish client-server connection
-- [ ] Assign unique player IDs
-- [ ] Define socket event contracts
-- [ ] Handle player joins and leaves
-- [ ] Synchronize player positions
-- [ ] Render remote players
-- [ ] Handle disconnects and stale state
+- [x] Add Socket.io client integration
+- [x] Establish client-server connection
+- [x] Assign unique player IDs
+- [x] Define socket event contracts
+- [x] Handle player joins and leaves
+- [x] Synchronize player positions
+- [x] Render remote players
+- [x] Handle disconnects and stale state
 
 ### Proximity Audio
 
 - [ ] Define world coordinate and distance rules
-- [ ] Detect nearby players
-- [ ] Apply proximity thresholds
-- [ ] Add WebRTC signaling
-- [ ] Request microphone access
-- [ ] Establish peer-to-peer audio
-- [ ] Add mute controls
-- [ ] Add distance-based volume attenuation
-- [ ] Handle audio connection failures
+- [x] Detect nearby players
+- [x] Apply proximity thresholds
+- [x] Add WebRTC signaling
+- [x] Request microphone access
+- [x] Establish peer-to-peer audio negotiation
+- [x] Add mute controls
+- [x] Add distance-based volume attenuation
+- [x] Add initial audio connection recovery handling
+- [ ] Complete cross-browser audio regression testing
+- [ ] Evaluate TURN service for production NAT traversal
 
 ### Persistence and Deployment
 
