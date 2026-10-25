@@ -253,6 +253,20 @@ Web Audio API Distance Attenuation
 
 The first audio implementation should prioritize reliable connections, understandable states, and graceful failure handling over advanced effects.
 
+### Current proximity audio implementation
+
+The current client implementation has progressed beyond the original planned flow above:
+
+- The server computes pairwise proximity using a 90-unit inclusive threshold and emits `proximity-entered` / `proximity-left` to both participants.
+- The client creates one `RTCPeerConnection` per nearby public player ID and chooses a deterministic offerer using lexicographic player-ID ordering.
+- The client currently configures Google STUN only. This does not guarantee connectivity through restrictive NAT/firewall configurations; production deployment may require TURN.
+- Audio media is peer-to-peer. Socket.IO relays offer, answer, and ICE signaling; the server does not relay voice media.
+- The local microphone is acquired on user action and its audio track is attached/replaced on peer senders. The client creates remote audio elements and applies distance-based element volume.
+- Peer signaling operations are serialized per active peer. Stale/replayed offers and answers are rejected by role/signaling-state checks, and ICE candidates with a known mismatching ICE username fragment are discarded.
+- This implementation is a mesh topology: each nearby participant can create a separate peer connection. Capacity and bandwidth limits have not been characterized.
+
+**Verification boundary:** automated server tests and a successful client build do not establish microphone delivery or browser interoperability. Those require real multi-session browser testing. The client currently has no automated browser-level WebRTC negotiation test suite.
+
 ## 11. Implementation Milestones
 
 ### Milestone 1 — Foundation
