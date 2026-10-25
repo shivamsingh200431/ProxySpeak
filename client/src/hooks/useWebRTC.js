@@ -13,6 +13,12 @@ function getAudioContextConstructor() {
   return window.AudioContext || window.webkitAudioContext;
 }
 
+function enqueuePeerSignal(peer, operation) {
+  const next = peer.signalingQueue.then(operation, operation);
+  peer.signalingQueue = next.catch(() => {});
+  return next;
+}
+
 export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPosition }) {
   const peersRef = useRef(new Map());
   const pendingIceRef = useRef(new Map());
@@ -139,6 +145,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       audioTransceiver: null,
       makingOffer: false,
       offerSent: false,
+      signalingQueue: Promise.resolve(),
     };
 
     peersRef.current.set(remotePlayerId, peer);
@@ -412,79 +419,84 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       console.debug("[webrtc] proximity left; peer closed", { remotePlayerId });
     };
 
-    const onOffer = async (payload) => {
+    const onOffer = (payload) => {
       if (payload?.targetPlayerId !== playerId || !payload.fromPlayerId || !payload.sdp) return;
-
-      const peer = getOrCreatePeer(payload.fromPlayerId);
-
-      try {
-        await peer.connection.setRemoteDescription(payload.sdp);
-        await flushPendingIce(payload.fromPlayerId, peer);
-
-        const answer = await peer.connection.createAnswer();
-        await peer.connection.setLocalDescription(answer);
-
-        socket.emit("webrtc-answer", {
-          targetPlayerId: payload.fromPlayerId,
-          fromPlayerId: playerId,
-          sdp: peer.connection.localDescription,
-        });
-
-        console.debug("[webrtc] answer sent", { remotePlayerId: payload.fromPlayerId });
-      } catch (error) {
-        console.error("[webrtc] offer handling failed", {
-          remotePlayerId: payload.fromPlayerId,
-          error,
-        });
-        closePeer(payload.fromPlayerId, peer);
-      }
-    };
-
-    const onAnswer = async (payload) => {
-      if (payload?.targetPlayerId !== playerId || !payload.fromPlayerId || !payload.sdp) return;
-
-      const peer = peersRef.current.get(payload.fromPlayerId);
-      if (!peer) return;
-
-      try {
-        await peer.connection.setRemoteDescription(payload.sdp);
-        await flushPendingIce(payload.fromPlayerId, peer);
-        console.debug("[webrtc] answer applied", { remotePlayerId: payload.fromPlayerId });
-      } catch (error) {
-        console.error("[webrtc] answer handling failed", {
-          remotePlayerId: payload.fromPlayerId,
-          error,
-        });
-        closePeer(payload.fromPlayerId, peer);
-      }
-    };
-
-    const onCandidate = async (payload) => {
-      if (
-        payload?.targetPlayerId !== playerId ||
-        !payload.fromPlayerId ||
-        !payload.candidate
-      ) {
+      if (shouldOffer(playerId, payload.fromPlayerId)) {
+        console.warn("[webrtc] ignored offer from non-offerer", { remotePlayerId: payload.fromPlayerId });
         return;
       }
 
       const remotePlayerId = payload.fromPlayerId;
-      const peer = peersRef.current.get(remotePlayerId);
+      const peer = getOrCreatePeer(remotePlayerId);
+      enqueuePeerSignal(peer, async () => {
+        if (peersRef.current.get(remotePlayerId) !== peer || peer.connection.signalingState === "closed") return;
+        if (peer.connection.signalingState !== "stable") {
+          console.warn("[webrtc] ignored offer in non-stable state", {
+            remotePlayerId, signalingState: peer.connection.signalingState,
+          });
+          return;
+        }
+        await peer.connection.setRemoteDescription(payload.sdp);
+        if (peersRef.current.get(remotePlayerId) !== peer) return;
+        await flushPendingIce(remotePlayerId, peer);
+        if (peersRef.current.get(remotePlayerId) !== peer) return;
+        const answer = await peer.connection.createAnswer();
+        if (peersRef.current.get(remotePlayerId) !== peer) return;
+        await peer.connection.setLocalDescription(answer);
+        if (peersRef.current.get(remotePlayerId) !== peer) return;
+        socket.emit("webrtc-answer", {
+          targetPlayerId: remotePlayerId, fromPlayerId: playerId,
+          sdp: peer.connection.localDescription,
+        });
+        console.debug("[webrtc] answer sent", { remotePlayerId });
+      }).catch((error) => {
+        console.error("[webrtc] offer handling failed", { remotePlayerId, error });
+        closePeer(remotePlayerId, peer);
+      });
+    };
 
+    const onAnswer = (payload) => {
+      if (payload?.targetPlayerId !== playerId || !payload.fromPlayerId || !payload.sdp) return;
+      const remotePlayerId = payload.fromPlayerId;
+      const peer = peersRef.current.get(remotePlayerId);
+      if (!peer) return;
+      enqueuePeerSignal(peer, async () => {
+        if (peersRef.current.get(remotePlayerId) !== peer || peer.connection.signalingState === "closed") return;
+        if (peer.connection.signalingState !== "have-local-offer") {
+          console.warn("[webrtc] ignored stale answer", {
+            remotePlayerId, signalingState: peer.connection.signalingState,
+          });
+          return;
+        }
+        await peer.connection.setRemoteDescription(payload.sdp);
+        if (peersRef.current.get(remotePlayerId) !== peer) return;
+        await flushPendingIce(remotePlayerId, peer);
+        console.debug("[webrtc] answer applied", { remotePlayerId });
+      }).catch((error) => {
+        console.error("[webrtc] answer handling failed", { remotePlayerId, error });
+        closePeer(remotePlayerId, peer);
+      });
+    };
+
+    const onCandidate = (payload) => {
+      if (payload?.targetPlayerId !== playerId || !payload.fromPlayerId || !payload.candidate) return;
+      const remotePlayerId = payload.fromPlayerId;
+      const peer = peersRef.current.get(remotePlayerId);
       if (!peer || !peer.connection.remoteDescription) {
         queueIceCandidate(remotePlayerId, payload.candidate);
         return;
       }
-
-      try {
+      enqueuePeerSignal(peer, async () => {
+        if (peersRef.current.get(remotePlayerId) !== peer || peer.connection.signalingState === "closed") return;
+        const candidateUfrag = payload.candidate.usernameFragment;
+        const remoteUfrag = peer.connection.remoteDescription?.sdp?.match(/^a=ice-ufrag:(.+)$/m)?.[1]?.trim();
+        if (candidateUfrag && remoteUfrag && candidateUfrag !== remoteUfrag) {
+          console.debug("[webrtc] ignored candidate from stale ICE generation", { remotePlayerId });
+          return;
+        }
         await peer.connection.addIceCandidate(payload.candidate);
         console.debug("[webrtc] ICE candidate added", { remotePlayerId });
-      } catch (error) {
-        console.warn("[webrtc] ICE candidate rejected", {
-          remotePlayerId,
-          error,
-        });
-      }
+      }).catch((error) => console.warn("[webrtc] ICE candidate rejected", { remotePlayerId, error }));
     };
 
     const onSignalingError = (payload) => {
