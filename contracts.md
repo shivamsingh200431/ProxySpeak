@@ -253,6 +253,20 @@ Web Audio API Distance Attenuation
 
 The first audio implementation should prioritize reliable connections, understandable states, and graceful failure handling over advanced effects.
 
+### Current proximity audio implementation
+
+The current client implementation has progressed beyond the original planned flow above:
+
+- The server computes pairwise proximity using a 90-unit inclusive threshold and emits `proximity-entered` / `proximity-left` to both participants.
+- The client creates one `RTCPeerConnection` per nearby public player ID and chooses a deterministic offerer using lexicographic player-ID ordering.
+- The client currently configures Google STUN only. This does not guarantee connectivity through restrictive NAT/firewall configurations; production deployment may require TURN.
+- Audio media is peer-to-peer. Socket.IO relays offer, answer, and ICE signaling; the server does not relay voice media.
+- The local microphone is acquired on user action and its audio track is attached/replaced on peer senders. The client creates remote audio elements and applies distance-based element volume.
+- Peer signaling operations are serialized per active peer. Stale/replayed offers and answers are rejected by role/signaling-state checks, and ICE candidates with a known mismatching ICE username fragment are discarded.
+- This implementation is a mesh topology: each nearby participant can create a separate peer connection. Capacity and bandwidth limits have not been characterized.
+
+**Verification boundary:** automated server tests and a successful client build do not establish microphone delivery or browser interoperability. Those require real multi-session browser testing. The client currently has no automated browser-level WebRTC negotiation test suite.
+
 ## 11. Implementation Milestones
 
 ### Milestone 1 — Foundation
@@ -690,8 +704,8 @@ The client now implements the first end-to-end WebRTC audio lifecycle on top of 
 - Each peer connection uses an audio sendrecv transceiver so the connection can be established before microphone permission is granted.
 - When a local microphone stream exists, its audio track is attached to the peer's audio sender with RTCRtpSender.replaceTrack.
 - The client forwards ICE candidates through the existing webrtc-ice-candidate Socket.io event.
-- Remote audio received through ontrack is routed through the Web Audio API using a MediaStreamAudioSourceNode and GainNode.
-- Remote voice gain uses the same authoritative 90u proximity radius: gain is 1 - distance / 90, clamped to 0..1.
+- Remote audio received through ontrack is attached to an unmuted HTMLAudioElement with an explicit playback attempt; autoplay failures are logged and retried after a user gesture.
+- Remote voice volume uses the same authoritative 90u proximity radius: volume is 1 - distance / 90, clamped to 0..1.
 - proximity-left immediately closes and removes the corresponding peer connection and audio nodes.
 - Peer connections are also cleaned up on failed/closed connection state and when the workspace WebRTC hook unmounts.
 - The server remains signaling-only; peer media and audio attenuation remain client-side.
@@ -699,3 +713,87 @@ The client now implements the first end-to-end WebRTC audio lifecycle on top of 
 - This milestone does not define TURN infrastructure, connection retry, speaking indicators, echo cancellation configuration, or persistent audio device preferences.
 
 This section records the client implementation boundary; it does not change the server signaling event payloads defined in Section 20.
+
+
+## 22. WebRTC Reliability & Local Voice Activity — 2026-10-08
+
+The first browser validation of the Week 3 client WebRTC implementation exposed an important debugging gap: microphone capture, signaling, ICE connectivity, remote-track delivery, and audio playback were not separately observable. This milestone hardens the ICE/audio lifecycle and adds a local microphone activity indicator.
+
+### ICE candidate ordering
+
+- Incoming ICE candidates must not be passed to `RTCPeerConnection.addIceCandidate()` until the corresponding remote description has been applied.
+- Candidates that arrive before the peer exists or before `remoteDescription` is available are queued per remote `playerId`.
+- Queued candidates are flushed after `setRemoteDescription()` succeeds for the offer or answer.
+- A rejected candidate is logged for diagnosis but does not by itself destroy an otherwise valid peer connection.
+- The signaling server continues to forward ICE payloads unchanged; candidate ordering is a client lifecycle responsibility.
+
+### Remote track delivery and negotiation lifecycle
+
+- A remote `RTCTrackEvent` may have an empty `streams` array when the sender uses an `addTransceiver()` sender with `replaceTrack()`. The client must handle streamless audio tracks by creating a `MediaStream` containing `event.track`; it must not silently discard the track.
+- The deterministic offerer creates at most one initial offer per peer-connection lifecycle. Position updates and remote-player movement updates must not repeatedly renegotiate an already-established peer. A new offer is permitted after the prior peer is closed and a fresh peer is created following a new proximity entry.
+- The `ontrack` diagnostic is emitted before stream construction so streamless track delivery remains observable.
+
+### Audio context lifecycle
+
+- Remote audio uses an unmuted HTMLAudioElement with an explicit play() attempt; playback rejections log their error name and message.
+- The AudioContext is retained for local microphone analysis, not as the remote playback sink.
+- A pointer or keyboard gesture retries any paused remote audio element and resumes a suspended AudioContext.
+- Remote element volume is updated from current proximity distance and logs volume, paused state, and readyState.
+
+### Local microphone activity
+
+- When a microphone MediaStream exists, the client attaches an AnalyserNode to that stream.
+- The analyser calculates a smoothed RMS level without sending or storing microphone samples.
+- The workspace microphone control displays a restrained activity pulse while the local input crosses the speaking threshold.
+- The indicator represents **local microphone input only**. It does not claim that WebRTC transmission or remote playback has succeeded.
+- Voice activity state is cleared when the microphone stream is removed or the WebRTC hook is unmounted.
+- Reduced-motion users receive the same state indication without transform animation.
+
+### Targeted silent-audio diagnostics
+
+- When the Web Audio graph is created for a remote track, the client logs AudioContext state, track state, whether the remote player position was found, measured distance, and initial gain.
+- The client logs remote track mute, unmute, and ended events, plus AudioContext state changes.
+- Local microphone sender attachment logs whether a track exists and its enabled, muted, and readyState values.
+- Position-driven gain updates log the current distance, gain, and AudioContext state. These diagnostics help separate missing microphone transmission, missing remote media, autoplay suspension, and zero-distance gain from signaling failures.
+
+### Diagnostics
+
+The client logs the following WebRTC lifecycle signals in the browser console:
+
+- offer sent
+- answer sent/applied
+- ICE candidate sent, queued, and added
+- ICE candidate errors
+- ICE connection state changes
+- RTCPeerConnection state changes
+- remote audio track received
+- signaling routing errors
+
+These logs are diagnostic only and do not form a new application/network contract.
+
+### Scope boundary
+
+This milestone does not add TURN infrastructure, persistent device preferences, speaking indicators for remote people, server-side audio processing, or a remote voice activity protocol. A successful local microphone indicator proves capture, not end-to-end peer audio.
+
+## 23. Week 3 Mesh Stability & Live Canvas Synchronization — 2026-10-12
+
+### Peer lifecycle safety
+
+- Each nearby remote person has at most one active `RTCPeerConnection` per client, keyed by public `playerId`.
+- Cleanup may optionally be scoped to the exact peer object. An asynchronous failure or signaling callback from an older connection must not remove a newer connection that has reused the same `playerId`.
+- `proximity-left` remains pair-specific and closes only the connection keyed to the other person's public `playerId`; it must not stop the shared local microphone stream or affect other peer connections.
+- If a peer enters the `failed` state while the pair is still within 90u, the deterministic offerer may initiate one bounded replacement negotiation. The answerer closes its failed connection and waits for that offer. A successful connection or a new proximity entry resets the retry budget.
+- A replacement negotiation must use a new peer connection and the existing lexicographic offerer rule. The signaling server remains a router and does not relay media.
+
+### Microphone and mesh boundary
+
+- The local microphone stream is shared as a source across independent peer connections. Closing one peer must not stop or disable the local stream or the senders attached to other peers.
+- Track attachment is reconciled when the microphone stream becomes available or changes, including when a peer was created before microphone permission was granted.
+- A live ICE connection is not proof that microphone samples are being sent. Debugging must distinguish track existence/enabled state, RTP transmission, remote track delivery, and audio-element playback.
+
+### Live remote movement rendering
+
+- The `player-moved` socket handler updates React remote-player state immutably by replacing only the matching player object.
+- `WorldCanvas` stores current props in refs and sleeps its animation loop when the camera has settled. Therefore both local-position and remote-player-array changes must explicitly wake the canvas renderer.
+- Updating a canvas data ref without scheduling a frame is insufficient; remote avatar coordinates must repaint without requiring local movement.
+- This change preserves the existing `player-moved` payload `{ playerId, x, y }` and does not add a new network event.
