@@ -1,6 +1,24 @@
 import { useCallback, useEffect, useRef } from "react";
 
-const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
+const ICE_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  // Public fallback TURN service. Replace with provider-issued credentials for production.
+  {
+    urls: "turn:openrelay.metered.ca:80",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+  {
+    urls: "turn:openrelay.metered.ca:443",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+  {
+    urls: "turn:openrelay.metered.ca:443?transport=tcp",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+];
 const PROXIMITY_AUDIO_RADIUS = 180;
 
 function shouldOffer(localPlayerId, remotePlayerId) {
@@ -19,10 +37,18 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
   const closePeer = useCallback((remotePlayerId) => {
     const peer = peersRef.current.get(remotePlayerId);
     if (!peer) return;
-    peer.connection.close();
+    peer.closed = true;
+    peer.connection.ontrack = null;
+    peer.connection.onicecandidate = null;
+    peer.connection.onconnectionstatechange = null;
+    try { peer.connection.close(); } catch {}
     peer.audio?.source?.disconnect();
     peer.audio?.gain?.disconnect();
-    peer.audio?.element?.remove();
+    if (peer.audio?.element) {
+      peer.audio.element.pause();
+      peer.audio.element.srcObject = null;
+      peer.audio.element.remove();
+    }
     peersRef.current.delete(remotePlayerId);
   }, []);
 
@@ -31,7 +57,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     if (existing) return existing;
 
     const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-    const peer = { connection, audio: null, makingOffer: false };
+    const peer = { connection, audio: null, makingOffer: false, closed: false };
     peersRef.current.set(remotePlayerId, peer);
     const transceiver = connection.addTransceiver("audio", { direction: "sendrecv" });
     peer.audioTransceiver = transceiver;
@@ -45,23 +71,39 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       });
     };
 
-    connection.ontrack = (event) => {
-      const stream = event.streams[0];
-      if (!stream) return;
+    connection.ontrack = async (event) => {
+      // Ignore late track events from peers that have already been closed/replaced.
+      if (peer.closed || peersRef.current.get(remotePlayerId) !== peer) return;
+      const stream = event.streams[0] || new MediaStream([event.track]);
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
-      const context = audioContextRef.current || new AudioContext();
+
+      // A renegotiation may fire ontrack again; dispose the old graph first.
+      peer.audio?.source?.disconnect();
+      peer.audio?.gain?.disconnect();
+      if (peer.audio?.element) {
+        peer.audio.element.pause();
+        peer.audio.element.srcObject = null;
+        peer.audio.element.remove();
+      }
+
+      const context = audioContextRef.current || new AudioContext({ latencyHint: "interactive" });
       audioContextRef.current = context;
       const source = context.createMediaStreamSource(stream);
       const gain = context.createGain();
       const element = new Audio();
       element.autoplay = true;
+      element.playsInline = true;
       element.srcObject = stream;
       element.style.display = "none";
+      // Keep the hidden element as a compatibility sink, but Web Audio owns output.
+      element.volume = 0;
       document.body.appendChild(element);
       source.connect(gain).connect(context.destination);
-      element.volume = 0;
       peer.audio = { source, gain, element };
+      if (context.state === "suspended") {
+        context.resume().catch(() => {});
+      }
     };
 
     connection.onconnectionstatechange = () => {
