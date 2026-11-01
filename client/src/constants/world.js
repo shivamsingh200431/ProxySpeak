@@ -14,7 +14,7 @@ export const SPAWN_POSITION = {
 export const PLAYER_RADIUS = 14;
 
 // Workspace proximity radius, aligned with the authoritative voice threshold.
-export const AUDIO_RADIUS = 180;
+export const AUDIO_RADIUS = 90;
 export const BOUNDARY_PADDING = 60;
 
 // Movement speed in world units per second.
