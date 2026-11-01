@@ -13,9 +13,8 @@ export const SPAWN_POSITION = {
 
 export const PLAYER_RADIUS = 14;
 
-// Workspace presentation radius. This is visual-only until the real proximity/audio
-// milestone defines the authoritative voice threshold.
-export const AUDIO_RADIUS = 160;
+// Workspace proximity radius, aligned with the authoritative voice threshold.
+export const AUDIO_RADIUS = 180;
 export const BOUNDARY_PADDING = 60;
 
 // Movement speed in world units per second.
