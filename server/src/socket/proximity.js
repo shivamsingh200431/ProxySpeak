@@ -1,5 +1,5 @@
 /**
- * Proximity filtering: distance calculation, the 180-unit threshold, and
+ * Proximity filtering: distance calculation, the 90-unit threshold, and
  * proximity-entered / proximity-left event emission.
  * Owner: Sagar — Milestone 3 (Proximity System). See contracts.md §8/§10.
  *
@@ -10,7 +10,7 @@
  * for connecting/tearing down peer audio.
  */
 
-export const PROXIMITY_THRESHOLD = 180;
+export const PROXIMITY_THRESHOLD = 90;
 
 /**
  * Euclidean distance between two { x, y } points.
