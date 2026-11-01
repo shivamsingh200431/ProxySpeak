@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
-const PROXIMITY_AUDIO_RADIUS = 90;
+const PROXIMITY_AUDIO_RADIUS = 180;
 
 function shouldOffer(localPlayerId, remotePlayerId) {
   return localPlayerId.localeCompare(remotePlayerId) < 0;
