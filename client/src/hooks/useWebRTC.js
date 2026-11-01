@@ -9,7 +9,7 @@ const ICE_SERVERS = [
 ];
 
 // Must stay aligned with server/src/socket/proximity.js and constants/world.js.
-const PROXIMITY_AUDIO_RADIUS = 180;
+const PROXIMITY_AUDIO_RADIUS = 90;
 
 function shouldOffer(localPlayerId, remotePlayerId) {
   return localPlayerId.localeCompare(remotePlayerId) < 0;
