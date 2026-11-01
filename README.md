@@ -1,125 +1,79 @@
 # ProxySpeak
 
-A browser-based, real-time proximity audio environment where users move through a shared virtual world and communicate with nearby users through spatially-aware voice communication.
+ProxySpeak is a browser-based virtual workspace where people move through a shared world and communicate with nearby people using proximity-based voice.
 
-> The project is being developed incrementally: first establish the multiplayer world foundation, then add proximity-based WebRTC audio.
+## Current implementation
 
-## Overview
+- React + Vite client with a Canvas workspace and nine-room prototype map.
+- Keyboard movement, camera following, and client-side collision/presentation.
+- Node.js + Express + Socket.io server.
+- World creation, invite-code joining, public player identities, presence snapshots, movement broadcasts, and leave/disconnect cleanup.
+- Server-side coordinate validation and world-bound clamping.
+- Server-managed proximity pairs using Euclidean distance and a **90 world-unit** threshold (inclusive), with entry/exit events scoped to each world.
+- WebRTC offer/answer/ICE signaling routed to an identified peer in the sender's world.
+- Client WebRTC peer lifecycle, explicit microphone permission, remote audio routing through Web Audio API, and distance-based gain.
+- Landing-page Proximity Lab (presentation-only simulation).
+- Server tests for events, validation, and proximity logic.
 
-ProxySpeak explores virtual communication where distance inside the world affects who can hear whom and how clearly they can hear them.
+## Important limitations
 
-### Planned capabilities
+- Proximity detection and signaling are implemented, but they do **not** guarantee successful voice calls. Permissions, ICE connectivity, network conditions, and deployment configuration matter.
+- World/player state is held **in memory** and is lost on server restart. Persistence and authentication are not part of the current baseline.
+- The server clamps positions to world bounds, but movement is not fully authoritative physics. Client-side collision/speed behavior is not anti-cheat protection.
+- The landing-page Proximity Lab is a local visual demo; it does not create calls or request microphone access.
+- Verify TURN configuration for deployment. Do not rely on public fallback STUN/TURN configuration as production infrastructure.
 
-- Shared virtual spaces
-- Real-time player movement
-- Live player presence
-- Nearby-player detection
-- Proximity-based voice communication
-- Distance-based audio attenuation
-- Browser-based access without a native application
+## Technology stack
 
-The current implementation focuses on the frontend world prototype and backend foundation. Audio will be introduced after movement and presence synchronization are stable.
+| Layer | Technology |
+| --- | --- |
+| Client | React, Vite, JavaScript |
+| Rendering | HTML5 Canvas |
+| Realtime | Socket.io / Socket.io Client |
+| Server | Node.js, Express |
+| Voice | WebRTC |
+| Audio processing | Web Audio API |
+| Persistence | Not currently implemented |
+| Scaling | Redis is a possible future option |
 
-## Project Status
-
-### Implemented
-
-- React and Vite frontend
-- Canvas-based virtual world
-- Basic keyboard movement
-- Node.js and Express backend
-- Backend health-check endpoint
-- npm workspace configuration
-- Concurrent frontend/backend development scripts
-
-### Current focus
-
-Connect the frontend and backend through Socket.io and synchronize multiple connected players in the same virtual world.
-
-## Technology Stack
-
-| Layer | Technology | Status |
-| --- | --- | --- |
-| Frontend | React, Vite, JavaScript | In use |
-| Rendering | HTML5 Canvas | In use |
-| Backend | Node.js, Express | In use |
-| Real-time communication | Socket.io | Planned / next phase |
-| Persistence | MongoDB | Planned |
-| Peer-to-peer audio | WebRTC | Planned |
-| Audio processing | Web Audio API | Planned |
-| Scaling support | Redis | Optional future phase |
-
-## Repository Structure
+## Repository structure
 
 ```text
 ProxySpeak/
-├── client/                  # React/Vite frontend
-│   ├── src/
-│   ├── index.html
-│   ├── package.json
-│   └── vite.config.js
-├── server/                  # Node.js/Express backend
-│   ├── src/
-│   ├── package.json
-│   └── .env.example
-├── docs/                    # Project documentation
-├── contracts.md             # Technical contracts and shared behavior
-├── README.md                # Project documentation
-├── package.json             # Root workspace configuration
-└── .gitignore
+├── client/                  # React/Vite application
+│   ├── public/world/        # Prototype map artwork
+│   └── src/
+│       ├── components/     # Canvas, HUD, workspace UI
+│       ├── constants/      # World geometry and audio radius
+│       ├── hooks/          # Movement and WebRTC lifecycle
+│       ├── landing/        # Public landing page
+│       ├── socket/         # Socket.io client
+│       └── utils/          # Camera, viewport, collision
+├── server/
+│   ├── src/socket/         # Events, validation, proximity
+│   └── test/               # Node test runner suites
+├── docs/                    # Product and audio design notes
+├── contracts.md             # Shared technical contracts
+└── package.json             # npm workspaces and root scripts
 ```
 
-## Requirements
+## Requirements and setup
 
-- Node.js LTS
-- npm
-- Git
-
-## Getting Started
-
-### 1. Clone the repository
+Requires Node.js LTS, npm, Git, a modern browser, and microphone access for voice transmission.
 
 ```bash
 git clone https://github.com/shivamsingh200431/ProxySpeak.git
 cd ProxySpeak
-```
-
-### 2. Install dependencies
-
-```bash
 npm install
-```
-
-### 3. Start the development environment
-
-```bash
 npm run dev
 ```
 
-The services run at:
+Development URLs:
+- Client: http://localhost:5173
+- Server: http://localhost:5000
+- Health: http://localhost:5000/health
 
-- Frontend: http://localhost:5173
-- Backend: http://localhost:5000
-
-## Available Commands
-
-| Command | Description |
-| --- | --- |
-| `npm run dev` | Start frontend and backend concurrently |
-| `npm run dev:client` | Start only the frontend |
-| `npm run dev:server` | Start only the backend |
-| `npm run build` | Build the frontend |
-| `npm start` | Start the backend |
-
-## Backend Health Check
-
-Open:
-
-```text
-http://localhost:5000/health
-```
-
-Expected response:
+The health endpoint should return:
 
 ```json
 {
@@ -128,67 +82,43 @@ Expected response:
 }
 ```
 
-## Development Roadmap
+## Commands
 
-### Foundation
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start client and server concurrently |
+| `npm run dev:client` | Start only the Vite client |
+| `npm run dev:server` | Start only the backend |
+| `npm run build` | Build the client |
+| `npm start` | Start the backend |
+| `npm run test --workspace=server` | Run server tests |
 
-- [x] Initialize monorepo
-- [x] Configure npm workspaces
-- [x] Create React/Vite frontend
-- [x] Create Express backend
-- [x] Create Canvas world prototype
-- [x] Add basic player movement
-- [x] Add health endpoint
-- [x] Verify local development
-- [x] Push initial project to GitHub
+## Shared behavior at a glance
 
-### Real-Time Multiplayer
+- World: **1800 × 1100**; spawn: **(900, 700)**.
+- Server boundary padding: **60 units**.
+- Client movement speed constant: **252 world units/second**.
+- Voice proximity threshold: **90 world units**, inclusive.
+- Public player IDs and world/invite codes: six characters, from an alphabet excluding visually ambiguous characters.
+- World membership and signaling are scoped to the current Socket.io world.
 
-- [ ] Add Socket.io client integration
-- [ ] Establish client-server connection
-- [ ] Assign unique player IDs
-- [ ] Define socket event contracts
-- [ ] Handle player joins and leaves
-- [ ] Synchronize player positions
-- [ ] Render remote players
-- [ ] Handle disconnects and stale state
+See [`contracts.md`](./contracts.md) for event payloads and lifecycle details, [`docs/audio/`](./docs/audio/) for audio design material, and [`docs/ui-design-direction.md`](./docs/ui-design-direction.md) for UI guidance.
 
-### Proximity Audio
+## Next priorities
 
-- [ ] Define world coordinate and distance rules
-- [ ] Detect nearby players
-- [ ] Apply proximity thresholds
-- [ ] Add WebRTC signaling
-- [ ] Request microphone access
-- [ ] Establish peer-to-peer audio
-- [ ] Add mute controls
-- [ ] Add distance-based volume attenuation
-- [ ] Handle audio connection failures
+1. Run and record server tests and client production build in CI.
+2. Exercise voice calls across browsers/networks, including ICE failure and proximity teardown/re-entry.
+3. Add movement rate/speed validation; assess authoritative collision/physics.
+4. Verify production TURN/ICE configuration.
+5. Decide release needs for persistence, identity/authentication, and monitoring.
 
-### Persistence and Deployment
+## Development principles
 
-- [ ] Integrate MongoDB
-- [ ] Add persistent world data where required
-- [ ] Add authentication if required
-- [ ] Configure production environment
-- [ ] Build deployment configuration
-- [ ] Deploy frontend and backend
-- [ ] Add monitoring and error handling
-
-## Development Guidelines
-
-- Keep rendering and networking logic separated.
-- Keep backend routes and real-time state management modular.
-- Validate all data received from clients.
-- Prefer explicit, documented event contracts.
-- Avoid premature infrastructure and unnecessary complexity.
-- Keep configuration in environment variables.
-- Verify each milestone locally before starting the next.
-- Update `contracts.md` whenever shared interfaces or behavior change.
-
-## Documentation
-
-See [`contracts.md`](./contracts.md) for architecture decisions, component boundaries, shared data structures, planned Socket.io events, server authority rules, audio architecture, and development milestones.
+- Separate rendering and networking concerns.
+- Validate client-originated data on the server.
+- Keep shared event contracts current.
+- Use environment variables for deployment configuration.
+- Test lifecycle and cross-client behavior, not only happy paths.
 
 ## License
 
