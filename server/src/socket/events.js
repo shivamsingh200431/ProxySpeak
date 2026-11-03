@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { validateJoinWorldPayload } from "./validators.js";
 import { updateProximity, clearPlayerProximity } from "./proximity.js";
+import { createMovementRateLimiter, isValidMovement } from "./movementGuard.js";
 
 const PLAYER_ID_LENGTH = 6;
 const WORLD_CODE_LENGTH = 6;
@@ -12,6 +13,11 @@ const BOUNDARY_PADDING = 60;
 
 export const connectedPlayers = new Map();
 export const worlds = new Map();
+
+// Permissive burst control: preserve normal client cadence while limiting floods.
+const movementRateLimiters = new Map();
+const MOVEMENT_MAX_EVENTS = 40;
+const MOVEMENT_WINDOW_MS = 1000;
 
 function randomCode(length) {
   const bytes = crypto.randomBytes(length);
@@ -53,6 +59,7 @@ function removePlayerFromWorld(io, socket, cause) {
   if (!player) return;
   const world = worlds.get(player.worldId);
   connectedPlayers.delete(socket.id);
+  movementRateLimiters.delete(socket.id);
 
   if (world) {
     // Clear proximity state and notify anyone who was near this player
@@ -194,11 +201,17 @@ function routeWebRTCSignal(io, socket, event, payload) {
 
 function handlePlayerMove(io, socket, payload) {
   const player = connectedPlayers.get(socket.id);
-  if (!player) return;
-  const x = Number(payload?.x);
-  const y = Number(payload?.y);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  if (!player || !isValidMovement(payload)) return;
 
+  let limiter = movementRateLimiters.get(socket.id);
+  if (!limiter) {
+    limiter = createMovementRateLimiter({ maxEvents: MOVEMENT_MAX_EVENTS, windowMs: MOVEMENT_WINDOW_MS });
+    movementRateLimiters.set(socket.id, limiter);
+  }
+  if (!limiter.allow()) return;
+
+  const x = Number(payload.x);
+  const y = Number(payload.y);
   player.x = Math.max(BOUNDARY_PADDING, Math.min(WORLD_WIDTH - BOUNDARY_PADDING, x));
   player.y = Math.max(BOUNDARY_PADDING, Math.min(WORLD_HEIGHT - BOUNDARY_PADDING, y));
   socket.to(player.worldId).emit("player-moved", {playerId: player.playerId, x: player.x, y: player.y });
