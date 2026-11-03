@@ -1,181 +1,64 @@
 # ProxySpeak Technical Contracts
 
-This document defines the technical contracts, system boundaries, and behavioral expectations for ProxySpeak.
+This document describes the **current repository behavior** and shared interfaces. Update it when a public interface, data shape, or architectural behavior changes.
 
-> Update this document whenever a public interface, shared data structure, or significant architectural behavior changes.
+## 1. Project and architecture
 
-## 1. Project Overview
+ProxySpeak is a browser-based virtual workspace with real-time presence and proximity-based voice.
 
-ProxySpeak is a browser-based, real-time proximity audio environment. Users occupy positions in a shared virtual world and will eventually communicate with nearby users through spatially-aware voice communication.
-
-Development is incremental. The real-time movement and presence layer must be established before peer-to-peer audio and persistence are introduced.
-
-## 2. Repository and Architecture
-
-| Item | Value |
-| --- | --- |
-| Repository | `shivamsingh200431/ProxySpeak` |
-| Default branch | `main` |
-| Repository type | Single monorepo |
-| Frontend directory | `client` |
-| Backend directory | `server` |
-| Documentation directory | `docs` |
-
-### High-level architecture
+- Repository: `shivamsingh200431/ProxySpeak`
+- Client: React, Vite, JavaScript, HTML5 Canvas
+- Server: Node.js, Express, Socket.io
+- Voice: client-side WebRTC; remote audio routed through Web Audio API
+- State: in-memory world/player registries (not persistent)
+- Client/server workspaces: `client/` and `server/`
 
 ```text
-┌──────────────────────┐
-│    Browser Client    │
-│ React + Canvas       │
-└──────────┬───────────┘
-           │ HTTP / Socket.io
-           ▼
-┌──────────────────────┐
-│ Node.js + Express    │
-│ Real-time server     │
-└──────────┬───────────┘
-           ├── Shared world state
-           ├── Player presence
-           ├── Movement validation
-           ├── WebRTC signaling
-           └── Future persistence layer
+Browser client (Canvas/UI, movement, peer audio)
+       | HTTP + Socket.io
+       v
+Node/Express + Socket.io server
+  - world membership and public identity
+  - position state and bounds clamping
+  - proximity pair tracking/events
+  - WebRTC signaling routing only
 ```
 
-## 3. Technology Stack
+The server routes signaling. It does not process media, inspect SDP/ICE semantics, or manage RTCPeerConnection state.
 
-### Current stack
+## 2. Development setup
 
-- React
-- Vite
-- JavaScript
-- HTML5 Canvas
-- Node.js
-- Express
-- Socket.io
-- Socket.io Client
+Requires Node.js LTS and npm.
 
-### Planned stack
-
-- **MongoDB** — persistence and geospatial queries
-- **WebRTC** — peer-to-peer audio
-- **Web Audio API** — distance-based audio processing
-- **Redis** — only if required by scaling or deployment needs
-
-## 4. Repository Structure
-
-```text
-ProxySpeak/
-├── client/
-│   ├── src/
-│   │   ├── socket/
-│   │   ├── App.jsx
-│   │   └── main.jsx
-│   ├── index.html
-│   ├── package.json
-│   └── vite.config.js
-├── server/
-│   ├── src/
-│   ├── package.json
-│   └── .env.example
-├── docs/
-├── contracts.md
-├── README.md
-├── package.json
-└── .gitignore
+```bash
+npm install
+npm run dev
 ```
 
-## 5. Development Environment
+- Client: `http://localhost:5173`
+- Server: `http://localhost:5000`
+- Health check: `GET /health`
 
-### Frontend
+Commands:
+- `npm run dev`: run client and server
+- `npm run dev:client`: client only
+- `npm run dev:server`: server only
+- `npm run build`: client production build
+- `npm start`: server
+- `npm run test --workspace=server`: server test suite
 
-- Development server: Vite
-- URL: `http://localhost:5173`
-- Socket server URL: `VITE_SERVER_URL` when provided, otherwise `http://localhost:5000`
+## 3. World and player model
 
-### Backend
+- World coordinate space: **1800 × 1100**
+- Spawn: **(900, 700)**
+- Server boundary padding: **60u**
+- Client movement speed constant: **252 world units/second**
+- The current map artwork contains nine connected prototype rooms.
+- World/player state is in memory and is removed with lifecycle cleanup; it is not restored after server restart.
+- Public player IDs, world IDs, and invite codes are six characters generated from an alphabet excluding visually ambiguous characters.
+- Socket IDs are server-only. Public player payloads do not expose them.
 
-- Development server: Node.js/Express
-- URL: `http://localhost:5000`
-
-### Health endpoint
-
-```http
-GET /health
-```
-
-Expected response:
-
-```json
-{
-  "status": "ok",
-  "service": "proxyspeak-server"
-}
-```
-
-## 6. Current Functional Baseline
-
-The following baseline has been implemented and locally verified:
-
-- The monorepo installs successfully using npm.
-- Frontend and backend can be started together.
-- The React interface renders successfully.
-- The Canvas world is visible.
-- A local player can be moved using keyboard controls.
-- The backend health endpoint responds successfully.
-- The initial project has been committed to `main` and pushed to GitHub.
-
-## 7. Real-Time World Model
-
-The planned shared world contains connected players.
-
-Each player will have, at minimum:
-
-```ts
-{
-  id: string,
-  x: number,
-  y: number
-}
-```
-
-Additional fields may be introduced when required, but the initial movement model should remain minimal.
-
-The server is responsible for maintaining authoritative shared player state.
-
-### Current frontend movement prototype
-
-The current frontend movement implementation is a local visual prototype. It updates the local Canvas position using keyboard input, but it does not synchronize coordinates with the server or other clients.
-
-Position synchronization, remote-player state, and authoritative movement validation remain Week 2 work.
-
-## 8. Socket.io Event Contract
-
-The connection/join layer now supports explicit world creation, invite-code joining, shared player presence, movement broadcasts, and cleanup.
-
-### Client → Server
-
-| Event | Payload | Notes |
-| --- | --- | --- |
-| `create-world` | `{ name: string }` | Creates a new private world using the validated display name and places the creator in it. |
-| `join-world` | `{ name: string, inviteCode: string }` | Joins an existing world using its 6-character invite code. Name is validated as 1–20 trimmed characters. |
-| `player-moved` | `{ x: number, y: number }` | Movement update from a joined client. The server validates numeric coordinates and clamps them to world bounds. |
-| `leave-world` | *(none)* | Explicit, intentional leave. Distinct from a network disconnect. |
-
-### Server → Client
-
-| Event | Payload | Sent to |
-| --- | --- | --- |
-| `world-created` | `{ worldId: string, inviteCode: string, name: string }` | Creator only |
-| `world-joined` | `{ worldId: string, inviteCode: string, worldName: string, owner: boolean, playerId: string, name: string, x: number, y: number, players: Player[] }` | Joining client only |
-| `player-joined` | `Player` | Other members of the same world |
-| `player-moved` | `{ playerId: string, x: number, y: number }` | Other members of the same world |
-| `player-left` | `{ playerId: string }` | Other members of the same world |
-| `join-error` | `{ code: string, message: string }` | Requesting client |
-| `world-error` | `{ code: string, message: string }` | Requesting client |
-
-### Player payload
-
-A public player payload is:
+Public player snapshot:
 
 ```json
 {
@@ -186,516 +69,124 @@ A public player payload is:
 }
 ```
 
-`socket.id` remains server-only. Public player IDs use six uppercase letters/digits while excluding visually ambiguous characters such as `I`, `O`, `0`, and `1`.
+The server validates coordinate values as finite numbers and clamps them to the padded world bounds. **This is not full authoritative movement simulation:** client-side collision and movement speed are not security enforcement, and movement rate/speed validation remains a hardening task.
 
-### World behavior
+## 4. Socket.io world events
 
-- Each created world receives a unique 6-character `worldId` and `inviteCode`.
-- The creator is the initial owner and is spawned at `(900,700)`.
-- Joining by invite code adds the client to that world and sends the current player snapshot.
-- Movement broadcasts are scoped to the player's current Socket.io world room.
-- Player positions are clamped server-side to the 1800 × 1100 world with 60u boundary padding.
-- Explicit leave and disconnect both remove the player from the world and notify the remaining members.
-- Empty worlds are removed from the in-memory registry.
+### Client → server
 
-### Built-in Socket.io lifecycle
+| Event | Payload | Behavior |
+| --- | --- | --- |
+| `create-world` | `{ name: string }` | Validates name, creates a world, and joins creator. |
+| `join-world` | `{ name: string, inviteCode: string }` | Validates name and joins a world by invite code. |
+| `player-moved` | `{ x: number, y: number }` | Updates joined member's bounded position, broadcasts it, reevaluates proximity. |
+| `leave-world` | none | Removes the member from the current world. |
 
-- `connection` — fires when the client establishes a Socket.io connection.
-- `disconnect` — fires when the client loses or closes the connection.
+Names are trimmed and must contain 1–20 characters. A socket already in a world must leave before creating or joining another.
 
-### Scope boundary
+### Server → client
 
-The current world registry is in-memory. MongoDB/persistence is intentionally deferred. WebRTC signaling and peer audio remain future milestones.
-## 9. Server Authority
+| Event | Payload | Audience |
+| --- | --- | --- |
+| `world-created` | `{ worldId, inviteCode, name }` | Creator |
+| `world-joined` | world metadata, local identity/position, `players: Player[]` | Joining client |
+| `player-joined` | `Player` | Other members of that world |
+| `player-moved` | `{ playerId, x, y }` | Other members of that world |
+| `player-left` | `{ playerId }` | Other members of that world |
+| `join-error` / `world-error` | `{ code, message }` | Requesting client |
 
-The server is authoritative for shared world state.
+Movement and presence broadcasts are scoped to a Socket.io world room. Explicit leave and disconnect remove player state, clean proximity pairs, and notify remaining members. Empty worlds are deleted.
 
-Clients may send movement updates or movement intentions, but the server must:
+## 5. Proximity contract
 
-- Validate incoming data
-- Maintain player positions
-- Broadcast accepted state
-- Remove disconnected players
-- Prevent malformed updates from affecting other clients
+- Authoritative threshold: **90 world units**, inclusive.
+- Distance: Euclidean distance between player coordinates.
+- Only members of the same world can form proximity pairs.
+- Pair keys are canonical unordered pairs stored in the world proximity set.
+- Proximity is evaluated on world join and accepted movement.
+- `proximity-entered` is sent to both peers when the pair enters range.
+- `proximity-left` is sent to both peers when the pair leaves range.
+- Payload: `{ playerId: string }`, identifying the other member from the recipient's perspective.
+- On leave/disconnect, active pairs are cleared; remaining peers receive `proximity-left`.
 
-## 10. Audio Architecture
+The proximity signal describes nearby state; it is not proof that media transport is connected.
 
-Audio will be introduced only after movement and presence synchronization are stable.
+## 6. WebRTC signaling contract
 
-### Proximity design decision
+Signaling messages contain the target and sender's public player IDs. Server routing resolves the target only within the sender's current world and forwards the payload unchanged.
 
-The landing-page demonstration uses a **180 world unit** proximity threshold for voice and presentation.
+| Event | Payload fields |
+| --- | --- |
+| `webrtc-offer` | `{ targetPlayerId, fromPlayerId, sdp }` |
+| `webrtc-answer` | `{ targetPlayerId, fromPlayerId, sdp }` |
+| `webrtc-ice-candidate` | `{ targetPlayerId, fromPlayerId, candidate }` |
 
-The current workspace uses a **180 world unit** visual radius for the prototype world. Neither value establishes an active voice connection, server-side proximity filtering, or WebRTC behavior. The authoritative voice threshold is **180 world units** and is aligned across server filtering, client peer management, distance attenuation, and the workspace proximity visual.
+Server checks:
+- Sender must be in a world.
+- Target must be a different player in the sender's current world.
+- `fromPlayerId` must match the authenticated socket's public player ID.
+- Invalid or unavailable targets produce `webrtc-signaling-error`; signaling is not routed across worlds.
 
-When the proximity system is implemented, the server/client contract will define how distance is calculated and how entering/leaving the threshold affects nearby-player state.
+Routing error codes include `TARGET_NOT_FOUND`, `NOT_IN_WORLD`, and `INVALID_TARGET`.
 
-Expected flow:
+### Negotiation and lifecycle
 
-```text
-Player Position
-      │
-      ▼
-Proximity Calculation
-      │
-      ▼
-Nearby Player Filtering
-      │
-      ▼
-WebRTC Signaling
-      │
-      ▼
-Peer-to-Peer Audio
-      │
-      ▼
-Web Audio API Distance Attenuation
-```
+- The lexicographically lower public player ID is designated offerer; the other peer answers.
+- The client manages RTCPeerConnection objects and ICE exchange.
+- Proximity entry triggers peer setup/negotiation.
+- Proximity exit closes and removes the corresponding peer connection and audio nodes.
+- Leave/disconnect uses the same peer cleanup path through proximity notifications.
+- A later proximity re-entry starts a new negotiation.
 
-The first audio implementation should prioritize reliable connections, understandable states, and graceful failure handling over advanced effects.
+## 7. Client audio behavior and limitations
 
-## 11. Implementation Milestones
+The client implements a peer connection per nearby remote public player ID, an audio send/receive transceiver, ICE candidate forwarding, microphone track attachment when a local stream is available, and remote track routing through Web Audio API source/gain nodes.
 
-### Milestone 1 — Foundation
+- Microphone permission must remain explicit; joining a world or proximity alone must not silently request it.
+- Remote audio gain follows the 90u range: `clamp(1 - distance / 90, 0, 1)`.
+- The browser and network still determine whether a peer connection succeeds.
+- ICE/TURN setup, permissions, device behavior, and deployment must be exercised in real browsers and networks.
+- Do not describe proximity state or successful signaling as a guaranteed voice call.
+- Public fallback STUN/TURN configuration is not a production reliability commitment. Configure and verify appropriate deployment ICE servers.
 
-- Monorepo setup
-- Frontend setup
-- Backend setup
-- Canvas prototype
-- Basic movement
-- Health endpoint
-- Local verification
-- Initial GitHub push
+The landing-page Proximity Lab is a **presentation-only local simulation**. Its labels and slider are not live network or media state and do not request microphone access.
 
-### Milestone 2 — Real-Time Multiplayer
+## 8. Product/UI contract
 
-- Install Socket.io dependencies
-- Establish client-server connection
-- Assign player IDs
-- Define event payloads
-- Synchronize player positions
-- Render remote players
-- Handle joins and disconnects
+The product has two primary experiences:
+1. Public landing page describing proximity communication.
+2. Joined virtual workspace.
 
-### Milestone 3 — Proximity System
+The workspace presents people/presence, proximity, voice controls, room context, navigation, and world HUD. UI must not claim peer audio is active unless connection state supports that claim. Demo-only labels must not imply production behavior.
 
-- Define world coordinate rules
-- Calculate player distance
-- Identify nearby players
-- Define and apply the authoritative voice proximity threshold
-- Handle entering and leaving proximity range
+Visual direction: near-black corporate base, red primary brand/action, yellow proximity/attention, green active/connected states, warm white text, and Atkinson Hyperlegible typography. Keep motion purposeful and respect reduced-motion preferences.
 
-### Milestone 4 — Voice Communication
+See `docs/ui-design-direction.md` for expanded design guidance and `docs/audio/` for supporting audio design notes.
 
-- Add WebRTC signaling
-- Request microphone access
-- Establish peer connections
-- Handle connection failures
-- Add mute controls
-- Add distance-based attenuation
+## 9. Tests and verification
 
-### Milestone 5 — Persistence and Deployment
+Server test files currently cover:
+- Proximity distance, pair entry/exit, and cleanup
+- Socket event registration, world lifecycle, movement and world scoping
+- Join payload validation
 
-- Add MongoDB where persistence is required
-- Add authentication if required
-- Configure environment variables
-- Add production builds
-- Deploy frontend and backend
-- Add monitoring and error handling
+Test command: `npm run test --workspace=server`.
 
-## 12. Engineering Guidelines
+The existence of tests is not a claim that the latest main revision has passed CI. Run tests and the client production build, then exercise two or more browsers for voice negotiation, ICE failure, mute/permission handling, proximity teardown, and re-entry.
 
-- Keep frontend rendering separate from networking logic.
-- Keep server state management separate from HTTP route definitions.
-- Validate all data received from clients.
-- Avoid introducing infrastructure before it is needed.
-- Prefer explicit event names and documented payloads.
-- Keep shared contracts backward-compatible where practical.
+## 10. Known gaps / next engineering priorities
+
+1. Add movement speed/rate validation and assess server-authoritative collision/physics.
+2. Add automated CI for server tests and client build; retain observable results.
+3. Run browser/network end-to-end voice tests, including reconnect and error paths.
+4. Configure and validate production TURN/ICE services.
+5. Decide product requirements for persistence, authentication, deployment monitoring, and recovery.
+
+## 11. Engineering principles
+
+- Separate rendering from networking and server state.
+- Validate all client-originated payloads.
+- Scope presence and signaling to the current world.
+- Keep shared event contracts explicit and backward-compatible where practical.
 - Use environment variables for deployment-specific configuration.
-- Verify each milestone locally before moving to the next one.
-
-
-## 13. UI/UX and Product Experience Direction
-
-The UI is intentionally split into two product experiences:
-
-1. **Landing page** — public product introduction and explanation of proximity-based communication.
-2. **Application** — the actual shared virtual environment.
-
-### Product identity
-
-ProxySpeak should feel like:
-
-> **Corporate collaboration + virtual world + subtle game mechanics**
-
-The application should be gamified without being presented as a conventional video game. It should use professional virtual-office environments and useful game-like interaction cues such as presence, proximity, speaking states, movement, room occupancy, navigation, and optional badges/achievements.
-
-The design should avoid a generic AI-dashboard aesthetic and unnecessary decorative effects.
-
-### Landing page direction
-
-The landing page should explain the core product through a simple proximity story:
-
-1. Move closer to someone.
-2. Enter their proximity range.
-3. Hear/talk to nearby people.
-4. Walk away and the audio relationship fades.
-
-Planned sections:
-
-- Hero
-- How ProxySpeak works
-- Proximity voice demonstration
-- Virtual office/product showcase
-- Feature overview
-- Final call to action
-- Entry into the application
-
-### Application UI direction
-
-The application should use a professional virtual-office visual language with subtle game mechanics.
-
-Use **people** rather than calling users "players" in user-facing UI.
-
-Core UI concepts include:
-
-- People/presence indicators
-- Proximity visualization
-- Speaking indicators
-- Voice state controls
-- Room occupancy
-- Movement controls
-- Map/navigation
-- World HUD
-- Meeting/room interfaces
-- Optional badges or achievements where they add product value
-
-Development-only labels such as "Mock", "Simulate Permission", or "Visual Only" may be used while features are being implemented, but they are not intended to remain in the finished product UI.
-
-### Visual design system
-
-The primary visual direction is a dark corporate foundation with vibrant red branding and restrained supporting colors.
-
-| Role | Direction |
-| --- | --- |
-| Background | Near-black |
-| Surface | Very dark charcoal |
-| Primary text | Warm white |
-| Secondary text | Cool/light gray |
-| Brand/action | Vibrant red |
-| Attention/proximity | Warm yellow |
-| Connected/active | Green |
-| Secondary accent | Orange |
-
-Red is the primary brand/action color.
-
-Yellow is primarily for proximity, attention, and interaction states.
-
-Green communicates connected/active states.
-
-Black and white provide the corporate foundation.
-
-Purple is not a primary ProxySpeak brand color. Existing purple components should be recolored or restyled when incorporated into ProxySpeak.
-
-### Typography
-
-The current design direction uses **Atkinson Hyperlegible** for headings and body text.
-
-The existing scale is based on a 16px root:
-
-- `sm`: 0.750rem
-- `base`: 1rem
-- `xl`: 1.333rem
-- `2xl`: 1.777rem
-- `3xl`: 2.369rem
-- `4xl`: 3.158rem
-- `5xl`: 4.210rem
-
-Weights:
-
-- Normal: 400
-- Bold: 700
-
-### Animation and component strategy
-
-Animation should communicate hierarchy, state, navigation, and social/physical presence rather than exist only for visual spectacle.
-
-Preferred responsibilities:
-
-- **Lenis** — smooth scrolling for the landing page, including anchor navigation and tuned wheel/touch behavior.
-- **Motion / Animate UI patterns** — Motion-powered React entrance effects, spring interactions, hover/tap feedback, and reusable reveal patterns inspired by Animate UI. Animate UI is a copy-first component distribution, so only selected patterns should be adapted rather than adding a large UI dependency surface.
-- **Canvas** — actual virtual-world rendering.
-- Additional animation systems should only be introduced when a concrete interaction requires them.
-
-**Inspira UI** is a design and interaction reference only. It is a Vue/Nuxt project and is not a direct dependency of the React/Vite client.
-
-The intended result is a polished interface without unnecessary particles, glowing blobs, excessive gradients, cursor trails, or animation layers that compete with the product.
-
-### Library boundaries
-
-| Resource | ProxySpeak role |
-| --- | --- |
-| Lenis | Landing-page smooth scrolling |
-| Animate UI | React UI components and motion patterns, adapted to ProxySpeak styling |
-| Inspira UI | Visual/interaction reference; no direct Vue/Nuxt dependency |
-| Custom Canvas/UI | Virtual-world experience and product-specific interactions |
-
-The virtual-world UI remains custom and should be designed around ProxySpeak's actual behavior.
-
-### Scope boundary
-
-This section defines visual and UX direction. It does not change the real-time networking, movement, proximity, or WebRTC contracts.
-
-The detailed visual guidance is documented in `docs/ui-design-direction.md`.
-
-Future UI changes that introduce a new shared interaction or materially change product behavior should update this contract as well.
-
-
-## 14. Landing Page Revamp — 2026-09-29
-
-The landing page has been rebuilt around a product-first editorial flow. The previous oversized cinematic/sticky transition sections are removed because they created excessive empty scroll space and made the content leave the viewport before the intended reveal completed.
-
-### Landing page structure
-
-The public page now uses normal document flow with these sections:
-
-1. Hero — product promise and virtual-office preview
-2. Idea — why proximity changes collaboration
-3. The Loop — move, arrive, talk, leave
-4. Proximity Lab — interactive distance/audio-state demonstration
-5. Workspace — virtual-office model and product concepts
-6. System — real-time, proximity, WebRTC, and Web Audio architecture
-7. Final CTA — entry into the application
-
-### Interaction and animation behavior
-
-- Lenis remains responsible for smooth landing-page scrolling and anchor navigation.
-- Motion provides in-view reveals, subtle hover/tap feedback, and spring-like CTA interaction.
-- MotionConfig with reducedMotion="user" is used so Motion respects the user's reduced-motion preference.
-- Interactive product demonstrations use local React state only and do not imply that unfinished backend/WebRTC functionality is already active.
-- No landing-page section relies on a long sticky viewport lock or a scroll-driven cinematic reveal.
-- Decorative motion must remain subordinate to product meaning: presence, proximity, navigation, state, and spatial context.
-
-### Proximity Lab presentation contract
-
-The Proximity Lab is explicitly a presentation-only simulation until the real proximity/audio milestones are implemented.
-
-- Distance is displayed in world units.
-- The current planned proximity threshold remains 90 world units.
-- The slider changes presentation state only.
-- Conversation, Nearby, and Out of range are visual labels for the demo and are not network/audio states.
-- No microphone access, WebRTC connection, server-side proximity filtering, or real audio processing is triggered by the landing page.
-
-### Landing page visual boundary
-
-The landing page continues to use the dark corporate foundation, red brand/action color, yellow proximity/attention color, green active state, and Atkinson Hyperlegible typography defined in Section 13.
-
-The landing page should prefer restrained grids, frames, product diagrams, and purposeful transitions over particles, glowing blobs, excessive gradients, cursor trails, or oversized cinematic effects.
-
-## 15. Workspace Map and Movement — 2026-09-30
-
-The workspace prototype now uses a large connected map with server-authoritative world bounds and client-side collision/presentation.
-
-### World geometry
-
-- World coordinate space is **1800 × 1100**.
-- The prototype contains nine connected rooms: Lounge, Focus, Meeting, Social, Commons, Quiet, Work, Lab, and Archive.
-- Horizontal and vertical corridors provide traversable routes between rooms.
-- The central Commons area is the default spawn/social anchor.
-- The SVG artwork and collision layer use the same 1800 × 1100 coordinate system.
-- Furniture remains solid without sealing the primary routes.
-
-### Runtime movement
-
-- Server-authoritative world bounds use 60u boundary padding.
-- Client and server spawn at `(900,700)`.
-- Movement speed is **252 world units/second**, using elapsed time rather than a frame-count multiplier.
-- The visual proximity radius is **160u** in the workspace prototype.
-- Collision is currently client-side presentation/movement logic; the server remains authoritative for shared player positions and world bounds.
-- The SVG is a prototype map representation and may later be replaced by a Tiled-authored map while preserving the movement/network contracts.
-
-## 16. Workspace Camera and Viewport — 2026-09-30
-
-The workspace world is rendered inside a dedicated contained viewport.
-
-- The joined world container sits to the right of the persistent sidebar.
-- It sits below the top navigation and above the bottom workspace controls.
-- The container uses rounded clipping and `overflow: hidden`.
-- The Canvas fills the container rather than the browser window.
-- Camera viewport dimensions come from the container's `getBoundingClientRect()` and are tracked with `ResizeObserver`.
-- The player-follow camera uses an approximately 30%–70% deadzone and smooth exponential follow.
-- Camera X/Y are clamped to the world edges relative to the actual container viewport dimensions.
-- Final camera/avatar rendering coordinates are rounded to whole screen pixels to reduce shimmer.
-- Opening Settings, People, Map, or Invite does not recenter or resize the camera.
-- UI panels are presentation layers; avatar movement remains constrained by world/collision rules rather than by panel geometry.
-
-This is a client presentation/movement contract and does not change server-authoritative Socket.io payloads.
-
-## 17. Workspace UI Behavior — 2026-09-30
-
-The workspace UI follows the supplied reference direction.
-
-- Before joining a world, the user sees **Join a World** and no fabricated remote people.
-- After joining, only the local user and server-sourced remote members are rendered.
-- Floating Settings, People, Map, and Invite panels close when the user clicks outside them.
-- Clicking the currently active panel trigger toggles that panel closed.
-- The bottom action dock is content-driven: controls appear only when their underlying behavior exists.
-- The microphone control requests local microphone permission and toggles local track state; it does **not** yet establish peer WebRTC audio.
-- The world and avatars use the current stickman visual language.
-- The workspace world remains visually calm and contained within its rounded viewport while glass UI overlays provide context.
-
-## 18. Workspace UI Completion — 2026-10-04
-
-The workspace UI should expose only meaningful interactions and make active states visually explicit.
-
-- The current world name in the top bar is a status surface, not a dropdown. It must not look like an unimplemented menu.
-- People, Map, Invite, and Settings controls expose their active state when the corresponding panel is open and toggle the panel closed when activated again.
-- The Lounge item represents the current workspace location and is presented as a non-interactive current-location indicator until room navigation is implemented.
-- The bottom dock is content-driven. The microphone control is shown only when the browser exposes microphone access; its current behavior remains local microphone permission/track control and is not peer audio.
-- The workspace mini-map represents all nine current prototype rooms and displays the local user plus server-sourced remote people.
-- Status surfaces such as connection state and people count are not presented as interactive controls.
-- UI labels must not imply that WebRTC peer audio is already active.
-- These are presentation and interaction rules; they do not change the Socket.io or movement contracts.
-
-## 19. Proximity System — 2026-10-08
-
-The server now maintains authoritative proximity state for players in the same world as the first step toward spatial audio.
-
-- The authoritative proximity threshold is **90 world units**.
-- Distance uses Euclidean distance between player `(x, y)` coordinates.
-- Players are considered within proximity when distance is **<= 90u**.
-- Proximity state is tracked per world as canonical unordered player pairs.
-- The server evaluates proximity when a player joins a world and after each accepted movement update.
-- `proximity-entered` is emitted to both members when a pair changes from outside the threshold to inside it.
-- `proximity-left` is emitted to both members when a pair changes from inside the threshold to outside it.
-- Payload shape is `{ playerId: string }`, identifying the other member from the receiver's perspective.
-- When a player leaves or disconnects, active pairs involving that player are cleared and the remaining member receives `proximity-left`.
-- Proximity events are scoped to the current world and are not emitted across worlds.
-- These events establish nearby-player state only. They do not establish, imply, or simulate WebRTC peer audio.
-
-## 20. WebRTC Signaling & Lifecycle Contracts — 2026-10-08
-
-This section defines the Week 3 bridge between the authoritative proximity layer, the Socket.io server, and the client-side WebRTC lifecycle. The server routes signaling messages only; it does not handle media, SDP processing, audio streams, or peer connection state.
-
-### Initiation rule
-
-When two clients receive `proximity-entered` for the same pair, exactly one client must create the WebRTC offer.
-
-- Compare the two public `playerId` values using a deterministic lexicographic/alphanumeric comparison.
-- The client with the lexicographically lower `playerId` is the **offerer**.
-- The client with the higher `playerId` is the **answerer**.
-- This rule prevents both clients from independently creating offers when the same proximity event reaches both sides and avoids offer glare.
-- `socket.id` remains server-only and is not exposed to clients. The server may use socket IDs internally for routing.
-- The offerer creates an `RTCPeerConnection`, creates the SDP offer, sets its local description, and sends `webrtc-offer` to the other player.
-- The answerer creates its peer connection when handling the offer, sets the remote description, creates the SDP answer, sets its local description, and sends `webrtc-answer` back to the offerer.
-
-### Signaling flow
-
-All signaling payloads identify the intended peer with the public `playerId`. The server resolves that ID to the current socket and forwards the message unchanged to the target client. The server must not inspect or modify SDP or ICE contents.
-
-```ts
-interface WebRTCOffer {
-  targetPlayerId: string;
-  fromPlayerId: string;
-  sdp: RTCSessionDescriptionInit;
-}
-
-interface WebRTCAnswer {
-  targetPlayerId: string;
-  fromPlayerId: string;
-  sdp: RTCSessionDescriptionInit;
-}
-
-interface WebRTCICECandidate {
-  targetPlayerId: string;
-  fromPlayerId: string;
-  candidate: RTCIceCandidateInit;
-}
-```
-
-### Socket.io events
-
-| Event | Direction | Payload | Server behavior |
-| --- | --- | --- | --- |
-| `webrtc-offer` | Client → Server → Client | `WebRTCOffer` | Resolve `targetPlayerId` in the sender's world and forward to that player's socket. |
-| `webrtc-answer` | Client → Server → Client | `WebRTCAnswer` | Resolve `targetPlayerId` in the sender's world and forward to that player's socket. |
-| `webrtc-ice-candidate` | Client → Server → Client | `WebRTCICECandidate` | Resolve `targetPlayerId` in the sender's world and forward to that player's socket. |
-
-The server must reject or ignore signaling attempts when the sender is not joined to a world, the target does not exist in the sender's current world, or the target is the sender. Signaling must never cross world boundaries.
-
-### Teardown flow
-
-`proximity-left` is the authoritative trigger for ending the nearby audio relationship.
-
-- When a client receives `proximity-left`, it must immediately close and remove the corresponding `RTCPeerConnection` for the indicated `playerId`.
-- The client must stop/clear peer-specific event handlers and remove the peer from its active WebRTC connection state.
-- No additional server signaling event is required to tear down a connection after `proximity-left`.
-- A later `proximity-entered` for the same pair starts a fresh WebRTC negotiation using the deterministic offerer rule above.
-- A player leave/disconnect already produces the remaining client's `proximity-left`, so the same cleanup path applies.
-
-### Routing errors
-
-If the server cannot route a valid signaling message because the target is disconnected or no longer exists in the sender's current world, the server sends the sender:
-
-```ts
-interface WebRTCSignalingError {
-  code: "TARGET_NOT_FOUND" | "NOT_IN_WORLD" | "INVALID_TARGET";
-  message: string;
-  targetPlayerId?: string;
-}
-```
-
-The corresponding Socket.io event is:
-
-```text
-webrtc-signaling-error
-```
-
-The server must not broadcast routing errors to other world members. `TARGET_NOT_FOUND` covers a target that was valid when the relationship was established but has since disconnected or left the world. `NOT_IN_WORLD` covers a sender that is not currently joined. `INVALID_TARGET` covers self-targeting or an otherwise invalid target identifier.
-
-### Lifecycle boundary
-
-The Week 3 signaling layer is transport and lifecycle coordination only:
-
-```text
-proximity-entered
-      │
-      ▼
-Deterministic offerer selection
-      │
-      ▼
-webrtc-offer → webrtc-answer
-      │
-      ▼
-webrtc-ice-candidate ↔ webrtc-ice-candidate
-      │
-      ▼
-Client-side RTCPeerConnection
-      │
-      ▼
-proximity-left
-      │
-      ▼
-Client-side peer connection cleanup
-```
-
-WebRTC media streams, microphone handling, audio mixing, distance attenuation, and connection recovery remain client-side responsibilities of the voice implementation and are not handled by the Socket.io server.
-
-
-## 21. Client WebRTC Audio Implementation — 2026-10-08
-
-The client now implements the first end-to-end WebRTC audio lifecycle on top of the Week 3 signaling contract.
-
-- A client creates one RTCPeerConnection per nearby remote playerId.
-- The lexicographically lower public playerId remains the offerer; the higher ID is the answerer.
-- Each peer connection uses an audio sendrecv transceiver so the connection can be established before microphone permission is granted.
-- When a local microphone stream exists, its audio track is attached to the peer's audio sender with RTCRtpSender.replaceTrack.
-- The client forwards ICE candidates through the existing webrtc-ice-candidate Socket.io event.
-- Remote audio received through ontrack is routed through the Web Audio API using a MediaStreamAudioSourceNode and GainNode.
-- Remote voice gain uses the same authoritative 90u proximity radius: gain is 1 - distance / 90, clamped to 0..1.
-- proximity-left immediately closes and removes the corresponding peer connection and audio nodes.
-- Peer connections are also cleaned up on failed/closed connection state and when the workspace WebRTC hook unmounts.
-- The server remains signaling-only; peer media and audio attenuation remain client-side.
-- The browser microphone permission control remains explicit. Joining a world or merely entering proximity must not request microphone permission automatically.
-- This milestone does not define TURN infrastructure, connection retry, speaking indicators, echo cancellation configuration, or persistent audio device preferences.
-
-This section records the client implementation boundary; it does not change the server signaling event payloads defined in Section 20.
+- Update this contract when behavior, payloads, or lifecycle semantics change.
