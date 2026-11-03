@@ -1,6 +1,9 @@
 import crypto from "node:crypto";
 import { validateJoinWorldPayload } from "./validators.js";
 import { updateProximity, clearPlayerProximity } from "./proximity.js";
+import { createMovementRateLimiter, isValidMovement } from "./movementGuard.js";
+
+const allowMovement = createMovementRateLimiter();
 
 const PLAYER_ID_LENGTH = 6;
 const WORLD_CODE_LENGTH = 6;
@@ -195,10 +198,13 @@ function routeWebRTCSignal(io, socket, event, payload) {
 function handlePlayerMove(io, socket, payload) {
   const player = connectedPlayers.get(socket.id);
   if (!player) return;
-  const x = Number(payload?.x);
-  const y = Number(payload?.y);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
 
+  // Validate before consuming a rate-limit slot or changing authoritative state.
+  if (!isValidMovement(payload)) return;
+  if (!allowMovement(socket.id)) return;
+
+  const x = Number(payload.x);
+  const y = Number(payload.y);
   player.x = Math.max(BOUNDARY_PADDING, Math.min(WORLD_WIDTH - BOUNDARY_PADDING, x));
   player.y = Math.max(BOUNDARY_PADDING, Math.min(WORLD_HEIGHT - BOUNDARY_PADDING, y));
   socket.to(player.worldId).emit("player-moved", {playerId: player.playerId, x: player.x, y: player.y });
