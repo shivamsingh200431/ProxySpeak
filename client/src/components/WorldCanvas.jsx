@@ -6,6 +6,21 @@ import { getCameraTarget, getInitialCamera } from "../utils/camera";
 const WORLD_ART = "/world/proxyspeak-world.svg";
 const CAMERA_FOLLOW_RATE = 10;
 
+/**
+ * HTML5 Canvas renderer for ProxySpeak virtual world.
+ *
+ * Features:
+ *  - Responsive viewport with smooth camera follow (exponential lerp)
+ *  - SVG world art backdrop (falls back to solid fill while loading)
+ *  - Local player stickman avatar with glow and "YOU" label
+ *  - Proximity zone preview circle (AUDIO_RADIUS — visual only, see contracts.md §7)
+ *  - Remote player stickman rendering — data shape: { id, name, x, y }
+ *    Will be populated in Milestone 2 (Week 2) once the server-side player
+ *    registry and position-sync events are finalised (contracts.md §8).
+ *  - Viewport culling for remote players
+ *  - ResizeObserver for responsive canvas resizing
+ *  - High-DPI (devicePixelRatio) aware
+ */
 export default function WorldCanvas({
   position,
   playerName = "You",
@@ -43,6 +58,7 @@ export default function WorldCanvas({
     needsRenderRef.current = true;
   }, [showProximityZone]);
 
+  // Pre-load the SVG world backdrop asynchronously.
   useEffect(() => {
     const image = new Image();
     image.decoding = "async";
@@ -52,6 +68,7 @@ export default function WorldCanvas({
     return () => { image.onload = null; };
   }, []);
 
+  // Main render loop — runs once on mount and wakes via needsRenderRef.
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -89,6 +106,7 @@ export default function WorldCanvas({
       lastFrameTime = now;
       const { width, height, dpr } = resizeCanvas();
 
+      // Initialise camera on first frame or after a resize reset.
       if (!cameraRef.current) {
         cameraRef.current = getInitialCamera({
           player: playerRef.current,
@@ -142,7 +160,8 @@ export default function WorldCanvas({
       );
       ctx.restore();
 
-      const cameraSettled = Math.abs(target.x - cameraRef.current.x) < 0.2 &&
+      const cameraSettled =
+        Math.abs(target.x - cameraRef.current.x) < 0.2 &&
         Math.abs(target.y - cameraRef.current.y) < 0.2;
 
       if (needsRenderRef.current || !cameraSettled) {
@@ -176,6 +195,7 @@ export default function WorldCanvas({
     };
   }, []);
 
+  // Wake the render loop whenever the player position changes.
   useEffect(() => {
     if (!renderRef.current) return;
     needsRenderRef.current = true;
@@ -187,8 +207,14 @@ export default function WorldCanvas({
     return () => cancelAnimationFrame(frame);
   }, [position]);
 
-  return <div ref={containerRef} className="canvas-container"><canvas ref={canvasRef} className="world-canvas" /></div>;
+  return (
+    <div ref={containerRef} className="canvas-container">
+      <canvas ref={canvasRef} className="world-canvas" />
+    </div>
+  );
 }
+
+// ── Drawing helpers ────────────────────────────────────────────────────────
 
 function drawWorld(ctx, art, position, playerName, remotePlayers, showProximityZone, viewport) {
   const localDrawPosition = {
@@ -196,6 +222,7 @@ function drawWorld(ctx, art, position, playerName, remotePlayers, showProximityZ
     y: Math.round(position.y)
   };
 
+  // World backdrop — SVG art when loaded, solid fallback while pending.
   if (art?.complete && art.naturalWidth > 0) {
     ctx.drawImage(art, 0, 0, WORLD_WIDTH, WORLD_HEIGHT);
   } else {
@@ -203,10 +230,15 @@ function drawWorld(ctx, art, position, playerName, remotePlayers, showProximityZ
     ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
   }
 
+  // Proximity preview circle (visual only — see contracts.md §7 Proximity Threshold).
+  // Not an active audio or networking boundary; becomes functional in Milestone 3.
   if (showProximityZone) {
-    const gradient = ctx.createRadialGradient(localDrawPosition.x, localDrawPosition.y, 8, localDrawPosition.x, localDrawPosition.y, AUDIO_RADIUS);
+    const gradient = ctx.createRadialGradient(
+      localDrawPosition.x, localDrawPosition.y, 8,
+      localDrawPosition.x, localDrawPosition.y, AUDIO_RADIUS
+    );
     gradient.addColorStop(0, "rgba(255,48,47,.18)");
-    gradient.addColorStop(.65, "rgba(255,48,47,.055)");
+    gradient.addColorStop(0.65, "rgba(255,48,47,.055)");
     gradient.addColorStop(1, "rgba(255,48,47,0)");
     ctx.fillStyle = gradient;
     ctx.beginPath();
@@ -222,18 +254,25 @@ function drawWorld(ctx, art, position, playerName, remotePlayers, showProximityZ
     ctx.setLineDash([]);
   }
 
-  remotePlayers.forEach(player => {
+  // Remote players — empty placeholder until Milestone 2 (Week 2) presence data.
+  // Rendering is contract-ready: expects { id, name, x, y } per player.
+  // Do NOT add Socket.io events here until contracts.md §8 movement events are finalised.
+  remotePlayers.forEach((player) => {
     const drawPosition = {
       x: Math.round(player.x),
       y: Math.round(player.y)
     };
-    const visible = player.x >= viewport.minX && player.x <= viewport.maxX &&
+
+    // Viewport culling — skip players outside the visible world bounds.
+    const visible =
+      player.x >= viewport.minX && player.x <= viewport.maxX &&
       player.y >= viewport.minY && player.y <= viewport.maxY;
     if (!visible) return;
 
     const distance = Math.hypot(player.x - position.x, player.y - position.y);
     const near = distance <= AUDIO_RADIUS;
 
+    // Connection beam between local and nearby remote players.
     if (near) {
       ctx.setLineDash([4, 6]);
       ctx.strokeStyle = "rgba(53,208,127,.28)";
@@ -245,10 +284,17 @@ function drawWorld(ctx, art, position, playerName, remotePlayers, showProximityZ
       ctx.setLineDash([]);
     }
 
-    drawStickman(ctx, drawPosition.x, drawPosition.y, player.name, false,
-      near ? Math.round(distance) + "u nearby" : Math.round(distance) + "u");
+    drawStickman(
+      ctx,
+      drawPosition.x,
+      drawPosition.y,
+      player.name,
+      false,
+      near ? Math.round(distance) + "u nearby" : Math.round(distance) + "u"
+    );
   });
 
+  // Local player — always drawn last so it renders on top.
   drawStickman(ctx, localDrawPosition.x, localDrawPosition.y, playerName, true, "YOU");
 }
 
@@ -258,6 +304,7 @@ function drawStickman(ctx, x, y, name, local, sub) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
+  // Glow ring
   ctx.shadowColor = local ? "rgba(255,48,47,.42)" : "rgba(53,208,127,.28)";
   ctx.shadowBlur = 14;
   ctx.strokeStyle = accent;
@@ -266,25 +313,27 @@ function drawStickman(ctx, x, y, name, local, sub) {
   ctx.arc(x, y + 2, 21, 0, Math.PI * 2);
   ctx.stroke();
 
+  // Head
   ctx.shadowBlur = 0;
   ctx.fillStyle = "rgba(8,9,8,.88)";
   ctx.beginPath();
   ctx.arc(x, y - 12, 7, 0, Math.PI * 2);
   ctx.fill();
 
+  // Body
   ctx.strokeStyle = "#f2f1eb";
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(x, y - 5);
-  ctx.lineTo(x, y + 13);
+  ctx.lineTo(x, y + 13);         // torso
   ctx.moveTo(x, y - 1);
-  ctx.lineTo(x - 9, y + 7);
+  ctx.lineTo(x - 9, y + 7);      // left arm
   ctx.moveTo(x, y - 1);
-  ctx.lineTo(x + 9, y + 7);
+  ctx.lineTo(x + 9, y + 7);      // right arm
   ctx.moveTo(x, y + 13);
-  ctx.lineTo(x - 7, y + 23);
+  ctx.lineTo(x - 7, y + 23);     // left leg
   ctx.moveTo(x, y + 13);
-  ctx.lineTo(x + 7, y + 23);
+  ctx.lineTo(x + 7, y + 23);     // right leg
   ctx.stroke();
 
   drawLabel(ctx, x, y - 40, name, sub, local);
@@ -299,6 +348,7 @@ function drawLabel(ctx, x, y, name, sub, local) {
   const subWidth = ctx.measureText(sub).width;
   const width = Math.max(nameWidth, subWidth) + 24;
 
+  // Background pill
   ctx.fillStyle = "rgba(7,8,7,.9)";
   ctx.beginPath();
   ctx.roundRect(x - width / 2, y - 22, width, 35, 8);
@@ -308,9 +358,12 @@ function drawLabel(ctx, x, y, name, sub, local) {
   ctx.lineWidth = 1;
   ctx.stroke();
 
+  // Name
   ctx.fillStyle = "#f5f4ef";
   ctx.font = "700 12px Arial, sans-serif";
   ctx.fillText(name, x, y - 6);
+
+  // Sub-label (coordinates / distance)
   ctx.fillStyle = local ? "#ff7775" : "#a3aaa5";
   ctx.font = "9px Arial, sans-serif";
   ctx.fillText(sub, x, y + 10);
