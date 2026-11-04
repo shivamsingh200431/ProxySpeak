@@ -5,12 +5,15 @@
 export const MOVEMENT_RATE_LIMIT = 30;
 export const MOVEMENT_RATE_WINDOW_MS = 1000;
 
+function validCoordinate(value) {
+  if (typeof value === "number") return Number.isFinite(value);
+  // Preserve numeric-string compatibility, but reject blank/whitespace strings.
+  return typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value));
+}
+
 export function isValidMovement(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
-  // Keep numeric-string compatibility with the existing event contract.
-  const x = Number(payload.x);
-  const y = Number(payload.y);
-  return Number.isFinite(x) && Number.isFinite(y);
+  return validCoordinate(payload.x) && validCoordinate(payload.y);
 }
 
 export function createMovementRateLimiter({
@@ -19,7 +22,7 @@ export function createMovementRateLimiter({
   now = Date.now,
 } = {}) {
   const buckets = new Map();
-  return function allow(key) {
+  function allow(key) {
     const current = now();
     let bucket = buckets.get(key);
     if (!bucket || current - bucket.startedAt >= windowMs || current < bucket.startedAt) {
@@ -29,5 +32,9 @@ export function createMovementRateLimiter({
     if (bucket.count >= limit) return false;
     bucket.count += 1;
     return true;
-  };
+  }
+  // Drop per-socket state when its connection ends.
+  allow.clear = (key) => buckets.delete(key);
+  allow.clearAll = () => buckets.clear();
+  return allow;
 }
