@@ -223,6 +223,9 @@ export function registerSocketEvents(io) {
     socket.on("webrtc-answer", (payload) => routeWebRTCSignal(io, socket, "webrtc-answer", payload));
     socket.on("webrtc-ice-candidate", (payload) => routeWebRTCSignal(io, socket, "webrtc-ice-candidate", payload));
     socket.on("leave-world", () => removePlayerFromWorld(io, socket, "leave-world"));
-    socket.on("disconnect", (reason) => removePlayerFromWorld(io, socket, `disconnect:${reason}`));
+    socket.on("disconnect", (reason) => {
+      allowMovement.clear(socket.id);
+      removePlayerFromWorld(io, socket, `disconnect:${reason}`);
+    });
   });
 }
