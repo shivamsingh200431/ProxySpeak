@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createMovementRateLimiter, isValidMovement } from "../src/socket/movementGuard.js";
 
 test("rejects malformed movement payloads", () => {
-  for (const payload of [null, undefined, [], "move", {}, { x: "nope", y: 2 }, { x: 2, y: Infinity }, { x: NaN, y: 2 }]) {
+  for (const payload of [null, undefined, [], "move", {}, { x: "nope", y: 2 }, { x: 2, y: Infinity }, { x: NaN, y: 2 }, { x: null, y: 2 }, { x: "", y: 2 }, { x: "   ", y: 2 }, { x: true, y: 2 }, { x: 2, y: false }]) {
     assert.equal(isValidMovement(payload), false);
   }
 });
@@ -33,4 +33,14 @@ test("rate limits clients independently and handles clock rollback", () => {
   assert.equal(allow("a"), false);
   now = 900;
   assert.equal(allow("a"), true);
+});
+
+
+test("rate limiter clear releases a client's bucket and allows a fresh window", () => {
+  const allow = createMovementRateLimiter({ limit: 1, now: () => 1000 });
+  assert.equal(allow("socket"), true);
+  assert.equal(allow("socket"), false);
+  assert.equal(allow.clear("socket"), true);
+  assert.equal(allow("socket"), true);
+  assert.equal(allow.clear("missing"), false);
 });
