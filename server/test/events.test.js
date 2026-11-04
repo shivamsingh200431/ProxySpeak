@@ -250,6 +250,28 @@ test("movement and presence broadcasts are isolated to the current world", () =>
   assert.equal( first.emitted.some(([event]) => event === "player-moved"), false, ); 
 });
 
+test("player-moved rate limit prevents excess state changes and broadcasts", () => {
+  const { createSocket } = createHarness();
+  const first = createSocket("movement-limited");
+  const second = createSocket("movement-peer");
+  first.handlers.get("create-world")({ name: "Shivam" });
+  const world = [...worlds.values()][0];
+  second.handlers.get("join-world")({ name: "Sagar", inviteCode: world.inviteCode });
+  const player = connectedPlayers.get(first.id);
+  second.emitted.length = 0;
+
+  for (let i = 0; i < 30; i += 1) {
+    first.handlers.get("player-moved")({ x: 700 + i, y: 600 });
+  }
+  const acceptedPosition = { x: player.x, y: player.y };
+  const acceptedBroadcasts = second.emitted.filter(([event]) => event === "player-moved").length;
+  assert.equal(acceptedBroadcasts, 30);
+
+  first.handlers.get("player-moved")({ x: 1200, y: 800 });
+  assert.deepEqual({ x: player.x, y: player.y }, acceptedPosition);
+  assert.equal(second.emitted.filter(([event]) => event === "player-moved").length, 30);
+});
+
 test("leave-world removes the player, notifies peers, and deletes an empty world", () => {
   const { createSocket } = createHarness();
   const first = createSocket("socket-1");
