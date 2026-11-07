@@ -263,6 +263,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
         console.warn("[webrtc] remote audio track muted", { remotePlayerId });
       });
       event.track.addEventListener("unmute", () => {
+        if (peer.closed || peersRef.current.get(remotePlayerId) !== peer || peer.audio?.element !== element) return;
         console.debug("[webrtc] remote audio track unmuted", { remotePlayerId });
         element.play().then(() => {
           console.debug("[webrtc] remote audio playback resumed after track unmute", {
@@ -442,6 +443,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
           await connection.setLocalDescription({ type: "rollback" });
         }
         await connection.setRemoteDescription(payload.sdp);
+        peer.ignoreOffer = false;
         await peer.flushCandidates();
         const answer = await connection.createAnswer();
         await connection.setLocalDescription(answer);
@@ -460,6 +462,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       peer.enqueue(async () => {
         if (peer.connection.signalingState !== "have-local-offer") return;
         await peer.connection.setRemoteDescription(payload.sdp);
+        peer.ignoreOffer = false;
         await peer.flushCandidates();
       });
     };
