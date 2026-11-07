@@ -72,6 +72,10 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     }
     peer.audio = null;
     peer.pendingCandidates.length = 0;
+    if (peer.statsTimer) {
+      clearInterval(peer.statsTimer);
+      peer.statsTimer = null;
+    }
     peersRef.current.delete(remotePlayerId);
   }, []);
 
@@ -89,6 +93,8 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       closed: false,
       pendingCandidates: [],
       operations: Promise.resolve(),
+      statsTimer: null,
+      lastMediaStats: null,
     };
     peersRef.current.set(remotePlayerId, peer);
     const transceiver = connection.addTransceiver("audio", { direction: "sendrecv" });
@@ -120,6 +126,91 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       }
     };
     peer.flushCandidates = flushCandidates;
+
+    const logMediaStats = async (reason) => {
+      if (peer.closed || typeof connection.getStats !== "function") return;
+      try {
+        const report = await connection.getStats();
+        const outbound = [];
+        const inbound = [];
+        let selectedCandidatePair = null;
+
+        report.forEach((stat) => {
+          if (stat.type === "outbound-rtp" && (stat.kind === "audio" || stat.mediaType === "audio")) {
+            outbound.push({
+              bytesSent: stat.bytesSent ?? 0,
+              packetsSent: stat.packetsSent ?? 0,
+              trackId: stat.trackIdentifier ?? stat.mediaSourceId ?? null,
+              active: stat.active ?? null,
+            });
+          }
+          if (stat.type === "inbound-rtp" && (stat.kind === "audio" || stat.mediaType === "audio")) {
+            inbound.push({
+              bytesReceived: stat.bytesReceived ?? 0,
+              packetsReceived: stat.packetsReceived ?? 0,
+              audioLevel: stat.audioLevel ?? null,
+              packetsLost: stat.packetsLost ?? 0,
+            });
+          }
+          if (stat.type === "candidate-pair" &&
+              (stat.selected || (stat.nominated && stat.state === "succeeded"))) {
+            selectedCandidatePair = {
+              state: stat.state,
+              currentRoundTripTime: stat.currentRoundTripTime ?? null,
+              availableOutgoingBitrate: stat.availableOutgoingBitrate ?? null,
+            };
+          }
+        });
+
+        const senderTrack = peer.audioTransceiver?.sender?.track;
+        const receiverTrack = peer.audioTransceiver?.receiver?.track;
+        const snapshot = {
+          remotePlayerId,
+          reason,
+          connectionState: connection.connectionState,
+          iceConnectionState: connection.iceConnectionState,
+          signalingState: connection.signalingState,
+          direction: peer.audioTransceiver?.direction ?? null,
+          currentDirection: peer.audioTransceiver?.currentDirection ?? null,
+          senderTrack: senderTrack ? {
+            enabled: senderTrack.enabled,
+            muted: senderTrack.muted,
+            readyState: senderTrack.readyState,
+          } : null,
+          receiverTrack: receiverTrack ? {
+            muted: receiverTrack.muted,
+            readyState: receiverTrack.readyState,
+          } : null,
+          remoteAudio: peer.audio?.element ? {
+            paused: peer.audio.element.paused,
+            muted: peer.audio.element.muted,
+            volume: peer.audio.element.volume,
+            readyState: peer.audio.element.readyState,
+          } : null,
+          outbound,
+          inbound,
+          selectedCandidatePair,
+        };
+
+        const signature = JSON.stringify({
+          connectionState: snapshot.connectionState,
+          iceConnectionState: snapshot.iceConnectionState,
+          currentDirection: snapshot.currentDirection,
+          senderTrack: snapshot.senderTrack,
+          receiverTrack: snapshot.receiverTrack,
+          outbound,
+          inbound,
+          selectedCandidatePair,
+        });
+        if (signature !== peer.lastMediaStats || reason !== "sample") {
+          console.info("[webrtc] directional media stats", snapshot);
+          peer.lastMediaStats = signature;
+        }
+      } catch (error) {
+        console.warn("[webrtc] getStats failed", { remotePlayerId, name: error?.name, message: error?.message });
+      }
+    };
+    peer.logMediaStats = logMediaStats;
 
     connection.onicecandidate = ({ candidate }) => {
       if (!candidate || peer.closed) return;
@@ -173,6 +264,19 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       });
       event.track.addEventListener("unmute", () => {
         console.debug("[webrtc] remote audio track unmuted", { remotePlayerId });
+        element.play().then(() => {
+          console.debug("[webrtc] remote audio playback resumed after track unmute", {
+            remotePlayerId,
+            paused: element.paused,
+            volume: element.volume,
+          });
+        }).catch((error) => {
+          console.warn("[webrtc] playback retry after track unmute blocked", {
+            remotePlayerId,
+            name: error?.name,
+            message: error?.message,
+          });
+        });
       });
       event.track.addEventListener("ended", () => {
         console.warn("[webrtc] remote audio track ended", { remotePlayerId });
@@ -212,11 +316,24 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     connection.onconnectionstatechange = () => {
       const state = connection.connectionState;
       console.debug("[webrtc] peer state", { remotePlayerId, state });
+      if (state === "connected") {
+        logMediaStats("connected");
+        if (!peer.statsTimer) {
+          peer.statsTimer = setInterval(() => logMediaStats("sample"), 5000);
+        }
+      } else if (peer.statsTimer) {
+        clearInterval(peer.statsTimer);
+        peer.statsTimer = null;
+      }
       if (["failed", "closed"].includes(state) && peersRef.current.get(remotePlayerId) === peer) {
         closePeer(remotePlayerId);
       }
     };
     connection.oniceconnectionstatechange = () => {
+      console.debug("[webrtc] ICE connection state", {
+        remotePlayerId,
+        state: connection.iceConnectionState,
+      });
       if (connection.iceConnectionState === "failed" && !peer.closed) {
         // Give ICE restart a chance without replacing the connection immediately.
         connection.restartIce();
@@ -398,6 +515,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
           muted: track?.muted ?? false,
           readyState: track?.readyState ?? "none",
         });
+        peer.logMediaStats?.("microphone-updated");
       }).catch((error) => {
         console.warn("[webrtc] microphone sender update failed", {
           remotePlayerId,
