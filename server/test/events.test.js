@@ -162,7 +162,7 @@ test("joins a world by invite code, sends a snapshot, and notifies existing memb
   ]);
 });
 
-test("player-moved updates state, clamps bounds, and broadcasts through the world room", () => {
+test("player-moved accepts normal displacement and rejects excessive displacement", () => {
   const { createSocket } = createHarness();
   const first = createSocket("socket-1");
   const second = createSocket("socket-2");
@@ -180,13 +180,13 @@ test("player-moved updates state, clamps bounds, and broadcasts through the worl
   first.emitted.length = 0;
   second.emitted.length = 0;
 
-  first.handlers.get("player-moved")({ x: 1000, y: 720 });
+  first.handlers.get("player-moved")({ x: 930, y: 720 });
 
-  assert.equal(player.x, 1000);
+  assert.equal(player.x, 930);
   assert.equal(player.y, 720);
   assert.deepEqual(second.emitted[0], [
     "player-moved",
-    { playerId: player.playerId, x: 1000, y: 720 },
+    { playerId: player.playerId, x: 930, y: 720 },
   ]);
   assert.equal( first.emitted.some(([event]) => event === "player-moved"), false, );
 
@@ -195,19 +195,20 @@ test("player-moved updates state, clamps bounds, and broadcasts through the worl
 
   first.handlers.get("player-moved")({ x: -500, y: 5000 });
 
-  assert.equal(player.x, 60);
-  assert.equal(player.y, 1040);
-  assert.deepEqual(second.emitted[0], [
-    "player-moved",
-    { playerId: player.playerId, x: 60, y: 1040 },
+  assert.equal(player.x, 930);
+  assert.equal(player.y, 720);
+  assert.deepEqual(first.emitted[0], [
+    "player-movement-rejected",
+    { code: "SPEED_LIMIT", x: 930, y: 720 },
   ]);
+  assert.equal(second.emitted.length, 0);
 
   second.emitted.length = 0;
 
   first.handlers.get("player-moved")({ x: "bad", y: 500 });
 
-  assert.equal(player.x, 60);
-  assert.equal(player.y, 1040);
+  assert.equal(player.x, 930);
+  assert.equal(player.y, 720);
   assert.equal(second.emitted.length, 0);
 });
 
@@ -236,7 +237,7 @@ test("movement and presence broadcasts are isolated to the current world", () =>
   second.emitted.length = 0;
   third.emitted.length = 0;
 
-  first.handlers.get("player-moved")({ x: 1100, y: 750 });
+  first.handlers.get("player-moved")({ x: 930, y: 720 });
 
   assert.deepEqual(second.emitted[0], [
     "player-moved",
@@ -250,6 +251,31 @@ test("movement and presence broadcasts are isolated to the current world", () =>
   assert.equal( first.emitted.some(([event]) => event === "player-moved"), false, ); 
 });
 
+test("movement rejection returns the last accepted position to the sender", () => {
+  const { createSocket } = createHarness();
+  const first = createSocket("movement-teleport");
+  const second = createSocket("movement-peer");
+  first.handlers.get("create-world")({ name: "Shivam" });
+  const player = connectedPlayers.get(first.id);
+  const world = worlds.get(player.worldId);
+  second.handlers.get("join-world")({ name: "Sagar", inviteCode: world.inviteCode });
+  const acceptedPosition = { x: player.x, y: player.y };
+  first.emitted.length = 0;
+  second.emitted.length = 0;
+
+  first.handlers.get("player-moved")({ x: 1600, y: 950 });
+
+  assert.deepEqual({ x: player.x, y: player.y }, acceptedPosition);
+  assert.deepEqual(first.emitted.at(-1), [
+    "player-movement-rejected",
+    { code: "SPEED_LIMIT", x: acceptedPosition.x, y: acceptedPosition.y },
+  ]);
+  assert.equal(second.emitted.some(([event]) => event === "player-moved"), false);
+
+  first.handlers.get("player-moved")({ x: acceptedPosition.x + 30, y: acceptedPosition.y });
+  assert.equal(player.x, acceptedPosition.x + 30);
+});
+
 test("player-moved rate limit prevents excess state changes and broadcasts", () => {
   const { createSocket } = createHarness();
   const first = createSocket("movement-limited");
@@ -261,7 +287,7 @@ test("player-moved rate limit prevents excess state changes and broadcasts", () 
   second.emitted.length = 0;
 
   for (let i = 0; i < 30; i += 1) {
-    first.handlers.get("player-moved")({ x: 700 + i, y: 600 });
+    first.handlers.get("player-moved")({ x: 900 + i, y: 700 });
   }
   const acceptedPosition = { x: player.x, y: player.y };
   const acceptedBroadcasts = second.emitted.filter(([event]) => event === "player-moved").length;
