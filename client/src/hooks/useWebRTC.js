@@ -59,6 +59,8 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     peer.closed = true;
     peer.connection.ontrack = null;
     peer.connection.onicecandidate = null;
+    peer.connection.onicecandidateerror = null;
+    peer.connection.oniceconnectionstatechange = null;
     peer.connection.onconnectionstatechange = null;
     try { peer.connection.close(); } catch {}
     peer.audio?.source?.disconnect();
@@ -218,8 +220,25 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       }
     };
 
-    const track = micStreamRef.current?.getAudioTracks?.()[0];
-    if (track) transceiver.sender.replaceTrack(track).catch(() => {});
+    const track = micStreamRef.current?.getAudioTracks?.()[0] || null;
+    if (track) {
+      transceiver.sender.replaceTrack(track).then(() => {
+        console.debug("[webrtc] local microphone track attached", {
+          remotePlayerId,
+          enabled: track.enabled,
+          muted: track.muted,
+          readyState: track.readyState,
+        });
+      }).catch((error) => {
+        console.warn("[webrtc] initial microphone track attach failed", {
+          remotePlayerId,
+          name: error?.name,
+          message: error?.message,
+        });
+      });
+    } else {
+      console.debug("[webrtc] peer created before microphone permission", { remotePlayerId });
+    }
     return peer;
   }, [closePeer, playerId, socket]);
 
@@ -361,8 +380,24 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
 
   useEffect(() => {
     const track = micStream?.getAudioTracks?.()[0] || null;
-    for (const peer of peersRef.current.values()) {
-      peer.audioTransceiver?.sender.replaceTrack(track).catch(() => {});
+    for (const [remotePlayerId, peer] of peersRef.current) {
+      const sender = peer.audioTransceiver?.sender;
+      if (!sender) continue;
+      sender.replaceTrack(track).then(() => {
+        console.debug("[webrtc] microphone sender updated", {
+          remotePlayerId,
+          trackAttached: Boolean(track),
+          enabled: track?.enabled ?? false,
+          muted: track?.muted ?? false,
+          readyState: track?.readyState ?? "none",
+        });
+      }).catch((error) => {
+        console.warn("[webrtc] microphone sender update failed", {
+          remotePlayerId,
+          name: error?.name,
+          message: error?.message,
+        });
+      });
     }
   }, [micStream]);
 
