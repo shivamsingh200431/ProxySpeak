@@ -9,7 +9,7 @@ ProxySpeak is a browser-based virtual workspace with real-time presence and prox
 - Repository: `shivamsingh200431/ProxySpeak`
 - Client: React, Vite, JavaScript, HTML5 Canvas
 - Server: Node.js, Express, Socket.io
-- Voice: client-side WebRTC; remote audio routed through Web Audio API
+- Voice: client-side WebRTC; remote audio played through an unmuted HTMLAudioElement, with Web Audio API used for local microphone activity analysis.
 - State: in-memory world/player registries (not persistent)
 - Client/server workspaces: `client/` and `server/`
 
@@ -140,10 +140,15 @@ Routing error codes include `TARGET_NOT_FOUND`, `NOT_IN_WORLD`, and `INVALID_TAR
 
 ## 7. Client audio behavior and limitations
 
-The client implements a peer connection per nearby remote public player ID, an audio send/receive transceiver, ICE candidate forwarding, microphone track attachment when a local stream is available, and remote track routing through Web Audio API source/gain nodes.
+The client implements a peer connection per nearby remote public player ID, an audio send/receive transceiver, queued ICE candidate forwarding, microphone track attachment when a local stream is available, and remote track playback through an unmuted HTMLAudioElement.
 
 - Microphone permission must remain explicit; joining a world or proximity alone must not silently request it.
-- Remote audio gain follows the 90u range: `clamp(1 - distance / 90, 0, 1)`.
+- Remote audio element volume follows the 90u range: `clamp(1 - distance / 90, 0, 1)`.
+- Remote playback calls `HTMLMediaElement.play()` explicitly and logs rejected playback; paused audio is retried after a pointer or keyboard gesture.
+- A streamless `RTCTrackEvent` is wrapped in a `MediaStream` so remote audio is not dropped.
+- Web Audio is used for local microphone RMS analysis only; it is not in the remote playback path.
+- Perfect Negotiation handles unexpected offer collisions with polite rollback/impolite ignore behavior while retaining deterministic offerer election as the normal path.
+- The local microphone activity indicator is a local-input signal only and does not claim peer connectivity or successful remote playback.
 - The browser and network still determine whether a peer connection succeeds.
 - ICE/TURN setup, permissions, device behavior, and deployment must be exercised in real browsers and networks.
 - Do not describe proximity state or successful signaling as a guaranteed voice call.
