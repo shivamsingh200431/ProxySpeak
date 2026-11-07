@@ -10,6 +10,8 @@ const ICE_SERVERS = [
 
 // Must stay aligned with server/src/socket/proximity.js and constants/world.js.
 const PROXIMITY_AUDIO_RADIUS = 90;
+const VOICE_ACTIVITY_THRESHOLD = 0.045;
+const VOICE_ACTIVITY_RELEASE = 0.028;
 
 function shouldOffer(localPlayerId, remotePlayerId) {
   return localPlayerId.localeCompare(remotePlayerId) < 0;
@@ -19,10 +21,37 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
   const peersRef = useRef(new Map());
   const remotePlayersRef = useRef(remotePlayers);
   const micStreamRef = useRef(micStream);
+  const localPositionRef = useRef(localPosition);
   const audioContextRef = useRef(null);
+  const micAnalyserRef = useRef(null);
+  const micSourceRef = useRef(null);
+  const visualizerFrameRef = useRef(null);
+  const voiceActiveRef = useRef(false);
 
   useEffect(() => { remotePlayersRef.current = remotePlayers; }, [remotePlayers]);
   useEffect(() => { micStreamRef.current = micStream; }, [micStream]);
+  useEffect(() => { localPositionRef.current = localPosition; }, [localPosition]);
+
+  const ensureAudioContext = useCallback(async () => {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return null;
+    if (!audioContextRef.current || audioContextRef.current.state === "closed") {
+      audioContextRef.current = new AudioContext({ latencyHint: "interactive" });
+    }
+    if (audioContextRef.current.state === "suspended") {
+      await audioContextRef.current.resume().catch(() => {});
+    }
+    return audioContextRef.current;
+  }, []);
+
+  const clearVoiceIndicator = useCallback(() => {
+    const app = document.querySelector(".workspace-app");
+    if (app) {
+      app.dataset.voiceActive = "false";
+      app.style.setProperty("--mic-level", "0");
+    }
+    voiceActiveRef.current = false;
+  }, []);
 
   const closePeer = useCallback((remotePlayerId) => {
     const peer = peersRef.current.get(remotePlayerId);
@@ -53,6 +82,8 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       connection,
       audio: null,
       makingOffer: false,
+      polite: playerId.localeCompare(remotePlayerId) > 0,
+      ignoreOffer: false,
       closed: false,
       pendingCandidates: [],
       operations: Promise.resolve(),
@@ -103,34 +134,70 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     connection.ontrack = (event) => {
       if (peer.closed || peersRef.current.get(remotePlayerId) !== peer) return;
       const stream = event.streams[0] || new MediaStream([event.track]);
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
 
-      // ontrack can fire more than once during renegotiation; release the prior graph.
-      peer.audio?.source?.disconnect();
-      peer.audio?.gain?.disconnect();
+      // A transceiver/replaced sender may deliver a streamless track.
+      // Play remote media through a real, unmuted media element so browser
+      // autoplay failures are observable and can be retried after a gesture.
+      const remote = remotePlayersRef.current.find((item) => item.playerId === remotePlayerId);
+      const local = localPositionRef.current;
+      const distance = remote
+        ? Math.hypot(local.x - remote.x, local.y - remote.y)
+        : PROXIMITY_AUDIO_RADIUS;
+      const initialVolume = Math.max(0, Math.min(1, 1 - distance / PROXIMITY_AUDIO_RADIUS));
+
       if (peer.audio?.element) {
         peer.audio.element.pause();
         peer.audio.element.srcObject = null;
         peer.audio.element.remove();
       }
 
-      const context = audioContextRef.current || new AudioContext({ latencyHint: "interactive" });
-      audioContextRef.current = context;
-      const source = context.createMediaStreamSource(stream);
-      const gain = context.createGain();
-      // Web Audio is the only audible path; element is a muted compatibility sink.
       const element = new Audio();
       element.autoplay = true;
       element.playsInline = true;
-      element.volume = 0;
+      element.muted = false;
+      element.volume = initialVolume;
       element.srcObject = stream;
-      element.style.display = "none";
-      document.body.appendChild(element);
-      source.connect(gain).connect(context.destination);
-      peer.audio = { source, gain, element };
+      peer.audio = { element };
 
-      if (context.state === "suspended") context.resume().catch(() => {});
+      event.track.addEventListener("mute", () => {
+        console.warn("[webrtc] remote audio track muted", { remotePlayerId });
+      });
+      event.track.addEventListener("unmute", () => {
+        console.debug("[webrtc] remote audio track unmuted", { remotePlayerId });
+      });
+      event.track.addEventListener("ended", () => {
+        console.warn("[webrtc] remote audio track ended", { remotePlayerId });
+      });
+
+      console.debug("[webrtc] remote audio element attached", {
+        remotePlayerId,
+        trackState: event.track.readyState,
+        trackMuted: event.track.muted,
+        streamAudioTracks: stream.getAudioTracks().length,
+        remotePlayerFound: Boolean(remote),
+        distance: remote ? Math.round(distance) : null,
+        volume: Number(initialVolume.toFixed(3)),
+      });
+
+      element.play().then(() => {
+        if (peer.closed || peersRef.current.get(remotePlayerId) !== peer) {
+          element.pause();
+          element.srcObject = null;
+        } else {
+          console.debug("[webrtc] remote audio playback started", {
+            remotePlayerId,
+            paused: element.paused,
+            volume: element.volume,
+            readyState: element.readyState,
+          });
+        }
+      }).catch((error) => {
+        console.warn("[webrtc] remote audio playback blocked", {
+          remotePlayerId,
+          name: error?.name,
+          message: error?.message,
+        });
+      });
     };
 
     connection.onconnectionstatechange = () => {
@@ -216,12 +283,17 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       const peer = getOrCreatePeer(remotePlayerId);
       peer.enqueue(async () => {
         const { connection } = peer;
-        // Deterministic role election should prevent glare; reject unexpected collisions.
-        if (connection.signalingState !== "stable") {
-          console.warn("[webrtc] offer arrived in non-stable state", {
-            remotePlayerId, state: connection.signalingState,
-          });
+        // Keep the deterministic offerer as the normal path, but use Perfect
+        // Negotiation to recover safely if simultaneous offers ever collide.
+        const offerCollision = payload.sdp.type === "offer" &&
+          (peer.makingOffer || connection.signalingState !== "stable");
+        peer.ignoreOffer = !peer.polite && offerCollision;
+        if (peer.ignoreOffer) {
+          console.debug("[webrtc] ignoring colliding offer (impolite peer)", { remotePlayerId });
           return;
+        }
+        if (offerCollision && peer.polite) {
+          await connection.setLocalDescription({ type: "rollback" });
         }
         await connection.setRemoteDescription(payload.sdp);
         await peer.flushCandidates();
@@ -251,6 +323,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       // A candidate may beat the offer over signaling; retain it on a placeholder peer.
       const peer = getOrCreatePeer(payload.fromPlayerId);
       peer.enqueue(async () => {
+        if (peer.ignoreOffer) return;
         if (!peer.connection.remoteDescription) {
           peer.pendingCandidates.push(payload.candidate);
           return;
@@ -287,12 +360,83 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
   }, [micStream]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function setupMicrophoneAnalyser() {
+      const track = micStream?.getAudioTracks?.()[0];
+      if (!track) {
+        micSourceRef.current?.disconnect();
+        micAnalyserRef.current?.disconnect();
+        micSourceRef.current = null;
+        micAnalyserRef.current = null;
+        clearVoiceIndicator();
+        return;
+      }
+
+      const context = await ensureAudioContext();
+      if (!context || cancelled) return;
+
+      micSourceRef.current?.disconnect();
+      micAnalyserRef.current?.disconnect();
+
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.72;
+      const source = context.createMediaStreamSource(micStream);
+      source.connect(analyser);
+      micSourceRef.current = source;
+      micAnalyserRef.current = analyser;
+
+      const data = new Uint8Array(analyser.fftSize);
+      const tick = () => {
+        if (cancelled || !micAnalyserRef.current) return;
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (const value of data) {
+          const normalized = (value - 128) / 128;
+          sum += normalized * normalized;
+        }
+        const rms = Math.sqrt(sum / data.length);
+        const level = Math.min(1, rms * 3.4);
+        const isActive = voiceActiveRef.current
+          ? level >= VOICE_ACTIVITY_RELEASE
+          : level >= VOICE_ACTIVITY_THRESHOLD;
+        voiceActiveRef.current = isActive;
+
+        const app = document.querySelector(".workspace-app");
+        if (app) {
+          app.style.setProperty("--mic-level", level.toFixed(3));
+          app.dataset.voiceActive = isActive ? "true" : "false";
+        }
+        visualizerFrameRef.current = requestAnimationFrame(tick);
+      };
+
+      cancelAnimationFrame(visualizerFrameRef.current);
+      tick();
+    }
+
+    setupMicrophoneAnalyser().catch((error) => {
+      console.warn("[webrtc] microphone analyser unavailable", { name: error?.name });
+      clearVoiceIndicator();
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(visualizerFrameRef.current);
+      micSourceRef.current?.disconnect();
+      micAnalyserRef.current?.disconnect();
+      micSourceRef.current = null;
+      micAnalyserRef.current = null;
+    };
+  }, [clearVoiceIndicator, ensureAudioContext, micStream]);
+
+  useEffect(() => {
     for (const [remotePlayerId, peer] of peersRef.current) {
       const remote = remotePlayersRef.current.find((item) => item.playerId === remotePlayerId);
-      if (!remote || !peer.audio?.gain) continue;
+      if (!remote || !peer.audio?.element) continue;
       const distance = Math.hypot(localPosition.x - remote.x, localPosition.y - remote.y);
-      const gain = Math.max(0, Math.min(1, 1 - distance / PROXIMITY_AUDIO_RADIUS));
-      peer.audio.gain.gain.setTargetAtTime(gain, peer.audio.gain.context.currentTime, 0.04);
+      const volume = Math.max(0, Math.min(1, 1 - distance / PROXIMITY_AUDIO_RADIUS));
+      peer.audio.element.volume = volume;
     }
   }, [localPosition, remotePlayers]);
 
@@ -309,9 +453,15 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     return () => {
       document.removeEventListener("pointerup", resume);
       document.removeEventListener("keydown", resume);
+      cancelAnimationFrame(visualizerFrameRef.current);
+      micSourceRef.current?.disconnect();
+      micAnalyserRef.current?.disconnect();
+      micSourceRef.current = null;
+      micAnalyserRef.current = null;
+      clearVoiceIndicator();
       for (const id of [...peersRef.current.keys()]) closePeer(id);
       audioContextRef.current?.close().catch(() => {});
       audioContextRef.current = null;
     };
-  }, [closePeer]);
+  }, [clearVoiceIndicator, closePeer]);
 }
