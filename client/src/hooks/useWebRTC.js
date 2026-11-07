@@ -111,8 +111,11 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
         try {
           await connection.addIceCandidate(candidate);
         } catch (error) {
-          // A rejected candidate should not destroy an otherwise healthy peer.
-          console.debug("[webrtc] candidate ignored", { remotePlayerId, name: error?.name });
+          // Candidates from an ignored glare offer may be rejected; don't let
+          // that failure tear down the accepted negotiation.
+          if (!peer.ignoreOffer) {
+            console.debug("[webrtc] candidate ignored", { remotePlayerId, name: error?.name });
+          }
         }
       }
     };
@@ -349,7 +352,6 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       // A candidate may beat the offer over signaling; retain it on a placeholder peer.
       const peer = getOrCreatePeer(payload.fromPlayerId);
       peer.enqueue(async () => {
-        if (peer.ignoreOffer) return;
         if (!peer.connection.remoteDescription) {
           peer.pendingCandidates.push(payload.candidate);
           return;
@@ -357,7 +359,12 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
         try {
           await peer.connection.addIceCandidate(payload.candidate);
         } catch (error) {
-          console.debug("[webrtc] candidate ignored", { remotePlayerId: payload.fromPlayerId, name: error?.name });
+          // Perfect Negotiation can leave candidates from an ignored offer in
+          // flight. Suppress only those errors; still try candidates that may
+          // belong to the accepted answer/ICE generation.
+          if (!peer.ignoreOffer) {
+            console.debug("[webrtc] candidate ignored", { remotePlayerId: payload.fromPlayerId, name: error?.name });
+          }
         }
       });
     };
