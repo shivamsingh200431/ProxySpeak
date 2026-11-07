@@ -58,6 +58,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     if (!peer) return;
     peer.closed = true;
     peer.connection.ontrack = null;
+    peer.connection.onsignalingstatechange = null;
     peer.connection.onicecandidate = null;
     peer.connection.onicecandidateerror = null;
     peer.connection.oniceconnectionstatechange = null;
@@ -95,9 +96,18 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       operations: Promise.resolve(),
       statsTimer: null,
       lastMediaStats: null,
+      needsNegotiation: false,
+      negotiationQueued: false,
     };
     peersRef.current.set(remotePlayerId, peer);
-    const transceiver = connection.addTransceiver("audio", { direction: "sendrecv" });
+    // A peer can be created before the user grants microphone access. Start
+    // receive-only in that case; changing to sendrecv after getUserMedia must
+    // trigger a new offer/answer exchange (replaceTrack alone cannot change
+    // the direction already negotiated in SDP).
+    const initialTrack = micStreamRef.current?.getAudioTracks?.()[0] || null;
+    const transceiver = connection.addTransceiver("audio", {
+      direction: initialTrack ? "sendrecv" : "recvonly",
+    });
     peer.audioTransceiver = transceiver;
 
     // Serialize SDP/ICE state mutations; socket events can arrive back-to-back.
@@ -109,6 +119,49 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
         console.warn("[webrtc] peer operation failed", { remotePlayerId, error });
       });
       return task;
+    };
+
+    // Either participant may obtain microphone permission after the initial
+    // receive-only negotiation. Queue a follow-up offer once signaling is
+    // stable. This also handles both microphones becoming available at once:
+    // the existing polite/impolite collision rules resolve glare.
+    peer.requestNegotiation = () => {
+      if (peer.closed || !peersRef.current.has(remotePlayerId)) return;
+      peer.needsNegotiation = true;
+      if (peer.negotiationQueued) return;
+      peer.negotiationQueued = true;
+      peer.enqueue(async () => {
+        peer.negotiationQueued = false;
+        if (!peer.needsNegotiation || connection.signalingState !== "stable") return;
+        peer.needsNegotiation = false;
+        peer.makingOffer = true;
+        try {
+          const offer = await connection.createOffer();
+          if (peer.closed) return;
+          await connection.setLocalDescription(offer);
+          socket.emit("webrtc-offer", {
+            targetPlayerId: remotePlayerId,
+            fromPlayerId: playerId,
+            sdp: connection.localDescription,
+          });
+          console.debug("[webrtc] renegotiation offer sent", {
+            remotePlayerId,
+            direction: transceiver.direction,
+            mid: transceiver.mid,
+          });
+        } catch (error) {
+          peer.needsNegotiation = true;
+          throw error;
+        } finally {
+          peer.makingOffer = false;
+        }
+      });
+    };
+
+    connection.onsignalingstatechange = () => {
+      if (connection.signalingState === "stable" && peer.needsNegotiation) {
+        peer.requestNegotiation();
+      }
     };
 
     const flushCandidates = async () => {
@@ -341,7 +394,7 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       }
     };
 
-    const track = micStreamRef.current?.getAudioTracks?.()[0] || null;
+    const track = initialTrack;
     if (track) {
       transceiver.sender.replaceTrack(track).then(() => {
         console.debug("[webrtc] local microphone track attached", {
@@ -510,6 +563,11 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
     for (const [remotePlayerId, peer] of peersRef.current) {
       const sender = peer.audioTransceiver?.sender;
       if (!sender) continue;
+      const desiredDirection = track ? "sendrecv" : "recvonly";
+      const directionChanged = peer.audioTransceiver.direction !== desiredDirection;
+      if (directionChanged) {
+        peer.audioTransceiver.direction = desiredDirection;
+      }
       sender.replaceTrack(track).then(() => {
         console.debug("[webrtc] microphone sender updated", {
           remotePlayerId,
@@ -517,8 +575,12 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
           enabled: track?.enabled ?? false,
           muted: track?.muted ?? false,
           readyState: track?.readyState ?? "none",
+          direction: peer.audioTransceiver.direction,
+          currentDirection: peer.audioTransceiver.currentDirection,
+          renegotiationRequired: directionChanged,
         });
         peer.logMediaStats?.("microphone-updated");
+        if (directionChanged) peer.requestNegotiation?.();
       }).catch((error) => {
         console.warn("[webrtc] microphone sender update failed", {
           remotePlayerId,
