@@ -11,7 +11,7 @@ ProxySpeak is a browser-based virtual workspace where people move through a shar
 - Server-side coordinate validation and world-bound clamping.
 - Server-managed proximity pairs using Euclidean distance and a **90 world-unit** threshold (inclusive), with entry/exit events scoped to each world.
 - WebRTC offer/answer/ICE signaling routed to an identified peer in the sender's world.
-- Client WebRTC peer lifecycle, explicit microphone permission, remote audio routing through Web Audio API, and distance-based gain.
+- Client WebRTC peer lifecycle with Perfect Negotiation collision handling, explicit microphone permission, unmuted HTML audio playback with distance-based volume, and a local microphone activity indicator.
 - Landing-page Proximity Lab (presentation-only simulation).
 - Server tests for events, validation, and proximity logic.
 
@@ -32,7 +32,7 @@ ProxySpeak is a browser-based virtual workspace where people move through a shar
 | Realtime | Socket.io / Socket.io Client |
 | Server | Node.js, Express |
 | Voice | WebRTC |
-| Audio processing | Web Audio API |
+| Audio processing | Web Audio API (local microphone activity analysis) |
 | Persistence | Not currently implemented |
 | Scaling | Redis is a possible future option |
 
