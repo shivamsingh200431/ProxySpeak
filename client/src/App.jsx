@@ -35,7 +35,7 @@ function InvitePanel({inviteCode,onClose}){const [copied,setCopied]=useState(fal
 export default function App(){
   const [playerName,setPlayerName]=useState("");const [inviteCode,setInviteCode]=useState("");const [worldName,setWorldName]=useState("");const [worldId,setWorldId]=useState("");const [worldInvite,setWorldInvite]=useState("");const [playerId,setPlayerId]=useState("");const [remotePlayers,setRemotePlayers]=useState([]);const [status,setStatus]=useState("Not connected");const [error,setError]=useState("");const [panel,setPanel]=useState(null);const [transparency,setTransparency]=useState(.68);const [micEnabled,setMicEnabled]=useState(false);const [micSupported,setMicSupported]=useState(false);const [micStream,setMicStream]=useState(null);
   const nameRef=useRef("");const intentRef=useRef(null);const lastSentRef=useRef(0);const panelRef=useRef(null);const micStreamRef=useRef(null);
-  const {position,heading,activeKeys}=useMovement();
+  const {position,heading,activeKeys,syncPosition}=useMovement();
   useWebRTC({socket,playerId,micStream,remotePlayers,localPosition:position});
   useEffect(()=>{nameRef.current=playerName},[playerName]);
   useEffect(()=>{setMicSupported(Boolean(navigator.mediaDevices?.getUserMedia))},[]);
@@ -50,12 +50,13 @@ export default function App(){
     const onWorldJoined=payload=>{setWorldId(payload.worldId);setWorldInvite(payload.inviteCode);setWorldName(payload.worldName);setPlayerId(payload.playerId);setRemotePlayers((payload.players||[]).filter(p=>p.playerId!==payload.playerId));setStatus("Joined");setError("")};
     const onPlayerJoined=player=>setRemotePlayers(prev=>prev.some(p=>p.playerId===player.playerId)?prev:[...prev,player]);
     const onPlayerMoved=payload=>setRemotePlayers(prev=>prev.map(p=>p.playerId===payload.playerId?{...p,...payload}:p));
+    const onMovementRejected=payload=>syncPosition(payload);
     const onPlayerLeft=payload=>setRemotePlayers(prev=>prev.filter(p=>p.playerId!==payload.playerId));
     const onError=payload=>{setError(payload.message);setStatus("Join failed");intentRef.current=null;if(socket.connected)socket.disconnect()};
     const onDisconnect=()=>{if(worldId)setStatus("Disconnected")};
-    socket.on("connect",onConnect);socket.on("world-created",onWorldCreated);socket.on("world-joined",onWorldJoined);socket.on("player-joined",onPlayerJoined);socket.on("player-moved",onPlayerMoved);socket.on("player-left",onPlayerLeft);socket.on("join-error",onError);socket.on("world-error",onError);socket.on("disconnect",onDisconnect);
-    return()=>{socket.off("connect",onConnect);socket.off("world-created",onWorldCreated);socket.off("world-joined",onWorldJoined);socket.off("player-joined",onPlayerJoined);socket.off("player-moved",onPlayerMoved);socket.off("player-left",onPlayerLeft);socket.off("join-error",onError);socket.off("world-error",onError);socket.off("disconnect",onDisconnect)};
-  },[worldId]);
+    socket.on("connect",onConnect);socket.on("world-created",onWorldCreated);socket.on("world-joined",onWorldJoined);socket.on("player-joined",onPlayerJoined);socket.on("player-moved",onPlayerMoved);socket.on("player-movement-rejected",onMovementRejected);socket.on("player-left",onPlayerLeft);socket.on("join-error",onError);socket.on("world-error",onError);socket.on("disconnect",onDisconnect);
+    return()=>{socket.off("connect",onConnect);socket.off("world-created",onWorldCreated);socket.off("world-joined",onWorldJoined);socket.off("player-joined",onPlayerJoined);socket.off("player-moved",onPlayerMoved);socket.off("player-movement-rejected",onMovementRejected);socket.off("player-left",onPlayerLeft);socket.off("join-error",onError);socket.off("world-error",onError);socket.off("disconnect",onDisconnect)};
+  },[syncPosition,worldId]);
   useEffect(()=>{if(!playerId||!socket.connected)return;const now=Date.now();if(now-lastSentRef.current<80)return;lastSentRef.current=now;socket.emit("player-moved",{x:position.x,y:position.y})},[position,playerId]);
   useEffect(()=>()=>{micStreamRef.current?.getTracks().forEach(track=>track.stop())},[]);
   async function toggleMic(){

@@ -19,6 +19,18 @@ export function useMovement(initialPosition = SPAWN_POSITION) {
     setHeading(0);
   }, []);
 
+  const syncPosition = useCallback((nextPosition) => {
+    const x = Number(nextPosition?.x);
+    const y = Number(nextPosition?.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const position = {
+      x: Math.max(WORLD_BOUNDS.minX, Math.min(WORLD_BOUNDS.maxX, x)),
+      y: Math.max(WORLD_BOUNDS.minY, Math.min(WORLD_BOUNDS.maxY, y)),
+    };
+    positionRef.current = position;
+    setPosition(position);
+  }, []);
+
   useEffect(() => {
     function handleKeyDown(e) {
       if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
@@ -111,5 +123,5 @@ export function useMovement(initialPosition = SPAWN_POSITION) {
     };
   }, []);
 
-  return { position, heading, activeKeys, resetPosition };
+  return { position, heading, activeKeys, resetPosition, syncPosition };
 }

@@ -79,7 +79,7 @@ The server validates coordinate values as finite numbers and clamps them to the 
 | --- | --- | --- |
 | `create-world` | `{ name: string }` | Validates name, creates a world, and joins creator. |
 | `join-world` | `{ name: string, inviteCode: string }` | Validates name and joins a world by invite code. |
-| `player-moved` | `{ x: number, y: number }` | Updates joined member's bounded position, broadcasts it, reevaluates proximity. |
+| `player-moved` | `{ x: number, y: number }` | Enforces the server movement budget, clamps accepted coordinates, broadcasts, reevaluates proximity. |
 | `leave-world` | none | Removes the member from the current world. |
 
 Names are trimmed and must contain 1–20 characters. A socket already in a world must leave before creating or joining another.
@@ -93,9 +93,10 @@ Names are trimmed and must contain 1–20 characters. A socket already in a worl
 | `player-joined` | `Player` | Other members of that world |
 | `player-moved` | `{ playerId, x, y }` | Other members of that world |
 | `player-left` | `{ playerId }` | Other members of that world |
+| `player-movement-rejected` | `{ code: "SPEED_LIMIT", x, y }` | Requesting client; snaps the local player to the last accepted position. |
 | `join-error` / `world-error` | `{ code, message }` | Requesting client |
 
-Movement and presence broadcasts are scoped to a Socket.io world room. Explicit leave and disconnect remove player state, clean proximity pairs, and notify remaining members. Empty worlds are deleted.
+Movement and presence broadcasts are scoped to a Socket.io world room. Movement is limited to 30 updates per second and a 252-unit/second distance budget with a 200 ms burst allowance for ordinary packet jitter. Excessive displacement is rejected and the sender is returned to its last accepted position. Explicit leave and disconnect clear per-socket movement state, clean proximity pairs, and notify remaining members. Empty worlds are deleted.
 
 ## 5. Proximity contract
 
@@ -181,9 +182,9 @@ The existence of tests is not a claim that the latest main revision has passed C
 
 ## 10. Known gaps / next engineering priorities
 
-1. Add movement speed/rate validation and assess server-authoritative collision/physics.
+1. Assess server-authoritative collision/physics; movement rate and speed validation are now implemented.
 2. Add automated CI for server tests and client build; retain observable results.
-3. Run browser/network end-to-end voice tests, including reconnect and error paths.
+3. Extend cross-browser/network voice tests to cover reconnect and failure recovery. Bidirectional audio has been confirmed in the current two-browser setup.
 4. Configure and validate production TURN/ICE services.
 5. Decide product requirements for persistence, authentication, deployment monitoring, and recovery.
 
