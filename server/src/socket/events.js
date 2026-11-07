@@ -1,9 +1,14 @@
 import crypto from "node:crypto";
 import { validateJoinWorldPayload } from "./validators.js";
 import { updateProximity, clearPlayerProximity } from "./proximity.js";
-import { createMovementRateLimiter, isValidMovement } from "./movementGuard.js";
+import {
+  createMovementRateLimiter,
+  createMovementSpeedGuard,
+  isValidMovement,
+} from "./movementGuard.js";
 
 const allowMovement = createMovementRateLimiter();
+const allowMovementSpeed = createMovementSpeedGuard();
 
 const PLAYER_ID_LENGTH = 6;
 const WORLD_CODE_LENGTH = 6;
@@ -56,6 +61,8 @@ function removePlayerFromWorld(io, socket, cause) {
   if (!player) return;
   const world = worlds.get(player.worldId);
   connectedPlayers.delete(socket.id);
+  allowMovement.clear(socket.id);
+  allowMovementSpeed.clear(socket.id);
 
   if (world) {
     // Clear proximity state and notify anyone who was near this player
@@ -83,6 +90,7 @@ function joinWorld(io, socket, name, world) {
 
   connectedPlayers.set(socket.id, player);
   world.players.set(socket.id, player);
+  allowMovementSpeed.initialize(socket.id, player);
   socket.join(world.worldId);
 
   socket.emit("world-joined", {
@@ -203,10 +211,23 @@ function handlePlayerMove(io, socket, payload) {
   if (!isValidMovement(payload)) return;
   if (!allowMovement(socket.id)) return;
 
-  const x = Number(payload.x);
-  const y = Number(payload.y);
-  player.x = Math.max(BOUNDARY_PADDING, Math.min(WORLD_WIDTH - BOUNDARY_PADDING, x));
-  player.y = Math.max(BOUNDARY_PADDING, Math.min(WORLD_HEIGHT - BOUNDARY_PADDING, y));
+  const x = Math.max(BOUNDARY_PADDING, Math.min(WORLD_WIDTH - BOUNDARY_PADDING, Number(payload.x)));
+  const y = Math.max(BOUNDARY_PADDING, Math.min(WORLD_HEIGHT - BOUNDARY_PADDING, Number(payload.y)));
+  const nextPosition = { x, y };
+
+  if (!allowMovementSpeed(socket.id, nextPosition)) {
+    // Keep the server authoritative and snap the sender back to its last
+    // accepted position so subsequent client updates do not drift further.
+    socket.emit("player-movement-rejected", {
+      code: "SPEED_LIMIT",
+      x: player.x,
+      y: player.y,
+    });
+    return;
+  }
+
+  player.x = x;
+  player.y = y;
   socket.to(player.worldId).emit("player-moved", {playerId: player.playerId, x: player.x, y: player.y });
 
   const world = worlds.get(player.worldId);
@@ -224,7 +245,6 @@ export function registerSocketEvents(io) {
     socket.on("webrtc-ice-candidate", (payload) => routeWebRTCSignal(io, socket, "webrtc-ice-candidate", payload));
     socket.on("leave-world", () => removePlayerFromWorld(io, socket, "leave-world"));
     socket.on("disconnect", (reason) => {
-      allowMovement.clear(socket.id);
       removePlayerFromWorld(io, socket, `disconnect:${reason}`);
     });
   });
