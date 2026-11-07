@@ -142,8 +142,12 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
       const local = localPositionRef.current;
       const distance = remote
         ? Math.hypot(local.x - remote.x, local.y - remote.y)
-        : PROXIMITY_AUDIO_RADIUS;
-      const initialVolume = Math.max(0, Math.min(1, 1 - distance / PROXIMITY_AUDIO_RADIUS));
+        : null;
+      // Do not start silent if the position snapshot has not arrived yet;
+      // the proximity effect applies the exact distance volume as soon as it does.
+      const initialVolume = distance === null
+        ? 1
+        : Math.max(0, Math.min(1, 1 - distance / PROXIMITY_AUDIO_RADIUS));
 
       if (peer.audio?.element) {
         peer.audio.element.pause();
@@ -289,6 +293,9 @@ export function useWebRTC({ socket, playerId, micStream, remotePlayers, localPos
           (peer.makingOffer || connection.signalingState !== "stable");
         peer.ignoreOffer = !peer.polite && offerCollision;
         if (peer.ignoreOffer) {
+          // ICE candidates queued before the colliding offer belong to the
+          // ignored negotiation and must not leak into a later description.
+          peer.pendingCandidates.length = 0;
           console.debug("[webrtc] ignoring colliding offer (impolite peer)", { remotePlayerId });
           return;
         }
